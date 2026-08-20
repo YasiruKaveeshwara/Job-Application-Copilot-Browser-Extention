@@ -193,16 +193,19 @@ export async function reachableFrames(context: BrowserContext): Promise<FramePro
   })) as FrameProbeResult;
 }
 
-/** Insert one answer into the active tab, as the panel's Insert button does. */
+/** Insert one answer into a frame of the active tab, as the panel's Insert button does. */
 export async function insertIntoActiveTab(
   context: BrowserContext,
   domRef: string,
   finalText: string,
+  frameId = 0,
 ): Promise<InsertFieldResult> {
-  const attempt = await sendToActiveTab<InsertFieldResult>(context, 'INSERT_FIELD', {
-    domRef,
-    finalText,
-  });
+  const attempt = await sendToActiveTab<InsertFieldResult>(
+    context,
+    'INSERT_FIELD',
+    { domRef, finalText },
+    frameId,
+  );
   if (!attempt.ok) {
     throw new Error(
       `INSERT_FIELD never reached the page: ${attempt.message} (${attempt.lastError})`,

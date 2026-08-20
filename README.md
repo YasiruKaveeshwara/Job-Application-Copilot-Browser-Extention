@@ -163,17 +163,43 @@ git checkout -- wxt.config.ts entrypoints/content.ts && npm run build
 
 ## Real-world validation log (Phase 17)
 
-| Site                                          | Fields detected | Labels reasonable | Drafts usable | Insert works | Notes |
-| --------------------------------------------- | --------------- | ----------------- | ------------- | ------------ | ----- |
-| _(run against 3 real sites and fill this in)_ |                 |                   |               |              |       |
+Full results: **[docs/manual-validation.md](docs/manual-validation.md)**. Run on
+2026-08-21 against five live pages — Greenhouse, Lever, Ashby, a Phenom-based
+company careers site, and Workday as the worst case — with the production build
+and no API key.
 
-To fill in: open three real job application pages (one major ATS, one company form,
-one worst-case candidate), trigger the scan, insert at least one answer per page, and
-correct at least one misclassified label. Record results in the table above.
+| Site                               | Fields detected | Labels reasonable           | Drafts usable      | Insert works           | Nothing submitted |
+| ---------------------------------- | --------------- | --------------------------- | ------------------ | ---------------------- | ----------------- |
+| Greenhouse (posting + inline form) | 19–20           | yes, all structured         | needs your API key | yes (one loss, see F3) | yes               |
+| Lever (`/apply` route)             | 55              | yes, all structured         | needs your API key | yes                    | yes               |
+| Ashby (`/application` route)       | 35              | yes, incl. all three essays | needs your API key | yes                    | yes               |
+| Netflix careers (Phenom)           | 8               | consent widgets only (F1)   | needs your API key | yes                    | yes               |
+| NVIDIA Workday (form behind login) | 1               | yes (the job search box)    | needs your API key | yes                    | yes               |
+
+The objective half is automated in
+[test/e2e/real-pages.spec.ts](test/e2e/real-pages.spec.ts) and re-runnable:
+
+```bash
+npm run build
+JAC_REAL_PAGES=1 npm run test:e2e -- real-pages
+```
+
+It is skipped by default: it needs the public internet, and live postings close.
+
+**What real pages showed that fixtures could not.** Consent dialogs and search
+boxes are detected as application fields, because structurally they are labelled
+inputs and the detector has no notion of "not part of an application" (F1). A scan
+is a snapshot — the same Greenhouse form reported 17, 19, and 20 fields seconds
+apart while it mounted, and two sites returned _zero_ fields when scanned at
+`domcontentloaded` and full sets a few seconds later, so rescanning matters (F2).
+An insert can be accepted and then discarded by the site's own later re-render,
+which is why you should read a form before submitting it (F3). Draft quality is
+the one checklist item automation cannot settle; the steps and an empty table for
+it are in the log.
 
 ## Project structure
 
-```
+```text
 entrypoints/
   background.ts          # Service worker: message handlers
   content.ts             # Content script: scan + insert
@@ -200,4 +226,6 @@ test/
   unit/                  # Vitest specs (225 tests)
   e2e/                   # Playwright specs (real browser, built extension)
 test-fixtures/           # Static HTML pages served for E2E tests
+docs/
+  manual-validation.md   # Phase 17 real-world validation log
 ```
