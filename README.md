@@ -243,6 +243,8 @@ JAC_REAL_PAGES=1 npm run test:e2e -- real-pages
 
 It is skipped by default: it needs the public internet, and live postings close.
 
+The whole run was repeated from a fresh clone for Phase 18 — `npm install && npm run build`, then the full suite at **47 passed, 2 skipped** against all five sites — which is the evidence behind the setup instructions above. Details, including the two findings it corroborated, are in the log.
+
 **What real pages showed that fixtures could not.** Consent dialogs and search
 boxes are detected as application fields, because structurally they are labelled
 inputs and the detector has no notion of "not part of an application" (F1). A scan

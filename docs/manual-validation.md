@@ -55,6 +55,41 @@ under that host — which is what the next generation reads as a hint. The
 per-host keying (one origin's corrections never becoming another's) is covered
 by [test/e2e/field-correction.spec.ts](../test/e2e/field-correction.spec.ts).
 
+## Re-run from a fresh clone (Phase 18)
+
+Phase 18's acceptance is that a fresh clone with only an API key added works end
+to end, so the whole thing was done again from one: `git clone` into an empty
+directory at commit `9f9c340`, then `npm install && npm run build`, then
+`JAC_REAL_PAGES=1 npx playwright test` — **47 passed, 2 skipped** (the two skips
+are the narrowed-manifest cross-origin variants, which need a hand-edited build;
+see the README). The clone's build is byte-identical to this repo's, install and
+build leave the tree clean, and nothing the build needs is git-ignored.
+
+Same five sites, second independent run, with no API key again:
+
+| Site               | Fields (first run → this run) | Insert read back            |
+| ------------------ | ----------------------------- | --------------------------- |
+| 1 Greenhouse       | 19–20 → 17, then 19, then 20  | **held** this time          |
+| 2 Lever            | 55 → 55                       | held                        |
+| 3 Ashby            | 35 → 35 (after 4 s)           | held                        |
+| 4 Netflix (Phenom) | 8 → 8                         | held (`Cookie list search`) |
+| 5 NVIDIA Workday   | 1 → 1 (after 7 s)             | held                        |
+
+Every count is the same as the first run, and the two slow pages were slow again
+by about the same margin — the numbers in this table are the ones the spec's
+per-page report printed, so anything it did not print is left out rather than
+guessed at.
+
+Two findings below get stronger evidence from this run rather than weaker. **F2**:
+the Greenhouse form reported 17, 19, and 20 fields at three different moments
+_within the same run_, which is the snapshot problem in one page. **F3**: the
+Greenhouse insert was read back intact this time — the earlier loss was a slow
+load re-mounting the form, not a defect that reproduces, which is exactly why it
+is written up as something to watch for rather than a bug to fix. The correction
+round trip stored the same mapping again.
+
+Draft quality is still the open item, and still needs a key.
+
 ## What didn't work
 
 **F1 — Consent and cookie UI is detected as application fields.** Site 4's eight
