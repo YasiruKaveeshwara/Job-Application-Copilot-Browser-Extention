@@ -4,6 +4,7 @@ import type { Generator } from './generator/types';
 import { GeneratorError } from './generator/types';
 import { getGenerator } from './generator';
 import { getProfile } from './storage';
+import { correctionHints } from './mapping-cache';
 import { retrieveFragments } from './retrieval';
 import { buildPrompt } from './prompt-builder';
 import { validateGeneratedAnswers } from './schema-validator';
@@ -111,6 +112,9 @@ export async function generateAnswers(
       request.context,
       fragmentsByField,
       profile.stylePreferences,
+      // Saved corrections, applied only after the generic detector has run, and
+      // only as a hint in the prompt (build guide, Phase 14).
+      await correctionHints(request.fields, request.context.url),
     );
 
     // Validated again here even though GeminiGenerator already validates: this is

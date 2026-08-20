@@ -154,8 +154,18 @@ function jobSection(context: JobContext): string {
 /**
  * One field's block. `position` is 1-based purely for readability in the prompt;
  * answers are keyed back by `tempId`, never by position.
+ *
+ * `hint` is a correction the user saved for this label on this site (Phase 14).
+ * It is worded as one person's note, not as ground truth: it was typed once,
+ * possibly on a different form of the same site, and the page in front of the
+ * model is the better evidence if the two disagree.
  */
-function fieldSection(field: DetectedField, fragments: string[], position: number): string {
+function fieldSection(
+  field: DetectedField,
+  fragments: string[],
+  position: number,
+  hint: string,
+): string {
   const label = collapse(field.resolvedLabel);
   const lines = [
     `### Field ${position}`,
@@ -174,6 +184,17 @@ function fieldSection(field: DetectedField, fragments: string[], position: numbe
   }
 
   lines.push(`Element type: ${field.elementType}`);
+
+  const correction = collapse(hint);
+  if (correction.length > 0) {
+    // Not fenced as page text: this is the user's own note, and labelling it as
+    // scraped content would tell the model to discount it. `fenceSafe` still
+    // runs, so it cannot open or close a fence of its own.
+    lines.push(
+      `The user previously corrected a field with this label on this site to: "${fenceSafe(correction)}"`,
+      'That is their note, not a fact about this page. Prefer it when it fits what the page shows, and ignore it when it does not.',
+    );
+  }
 
   const currentValue = collapse(field.currentValue);
   if (currentValue.length > 0) {
@@ -210,14 +231,18 @@ function toFieldRef(field: DetectedField): PromptFieldRef {
  * Assemble the single batched prompt for one page.
  *
  * `fragmentsByField` is keyed by `tempId`; a field with no entry is stated as
- * having no fragments rather than omitted. Pure and deterministic — same inputs,
- * same strings, no storage or network access.
+ * having no fragments rather than omitted. `hintsByField` is keyed the same way
+ * and carries saved corrections (Phase 14) — optional, because a prompt built
+ * without them must be identical to one for a site the user has never corrected.
+ * Pure and deterministic — same inputs, same strings, no storage or network
+ * access.
  */
 export function buildPrompt(
   fields: DetectedField[],
   context: JobContext,
   fragmentsByField: Record<string, string[]>,
   style: ProfileData['stylePreferences'],
+  hintsByField: Record<string, string> = {},
 ): BuiltPrompt {
   const sections = [
     jobSection(context),
@@ -229,7 +254,14 @@ export function buildPrompt(
 
   fields.forEach((field, index) => {
     sections.push('');
-    sections.push(fieldSection(field, fragmentsByField[field.tempId] ?? [], index + 1));
+    sections.push(
+      fieldSection(
+        field,
+        fragmentsByField[field.tempId] ?? [],
+        index + 1,
+        hintsByField[field.tempId] ?? '',
+      ),
+    );
   });
 
   sections.push('');

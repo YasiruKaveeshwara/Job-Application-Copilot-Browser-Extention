@@ -165,3 +165,22 @@ export async function insertIntoActiveTab(
   }
   return attempt.result;
 }
+
+/**
+ * Everything the extension has written to `chrome.storage.local`.
+ *
+ * Returned whole rather than by key: WXT owns the key naming behind
+ * `storage.defineItem`, and a spec that asserts on the real stored record is
+ * checking what the extension actually persisted.
+ */
+export async function readLocalStorage(context: BrowserContext): Promise<Record<string, unknown>> {
+  const worker = await backgroundWorker(context);
+  return (await worker.evaluate(() => {
+    const api = (
+      globalThis as unknown as {
+        chrome: { storage: { local: { get(keys: null): Promise<Record<string, unknown>> } } };
+      }
+    ).chrome;
+    return api.storage.local.get(null);
+  })) as Record<string, unknown>;
+}

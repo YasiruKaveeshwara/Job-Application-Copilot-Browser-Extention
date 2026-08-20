@@ -1,6 +1,7 @@
 import { browser, defineBackground } from '#imports';
 import { onMessage } from '../lib/messaging';
 import { generateAnswers } from '../lib/orchestrator';
+import { saveFieldMapping } from '../lib/mapping-cache';
 
 /**
  * Make the toolbar button open the review panel.
@@ -30,7 +31,10 @@ export default defineBackground(() => {
   // than an unhandled rejection in the worker.
   onMessage('REQUEST_GENERATION', ({ data }) => generateAnswers(data));
 
-  // SAVE_FIELD_MAPPING is handled in Phase 14 (learned mapping cache).
+  // A correction the user typed on a card. Handled here rather than in the panel
+  // so the panel never touches storage directly, and so a save that fails comes
+  // back as a rejection the card can show.
+  onMessage('SAVE_FIELD_MAPPING', ({ data }) => saveFieldMapping(data));
 
   bindSidePanelToToolbarIcon();
 });

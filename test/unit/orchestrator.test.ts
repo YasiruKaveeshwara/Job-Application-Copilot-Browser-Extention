@@ -6,6 +6,7 @@ import { GeneratorError } from '../../lib/generator/types';
 import type { BuiltPrompt, Generator } from '../../lib/generator/types';
 import { MOCK_GENERATOR_FLAG, usingMockGenerator } from '../../lib/generator';
 import { saveProfile, saveSettings, emptyProfile, DEFAULT_MODEL_ID } from '../../lib/storage';
+import { getFieldMappings, saveFieldMapping } from '../../lib/mapping-cache';
 import { sendMessage } from '../../lib/messaging';
 import background from '../../entrypoints/background';
 import type { DetectedField, GeneratedAnswer, JobContext, ProfileData } from '../../lib/types';
@@ -144,6 +145,39 @@ describe('generateAnswers', () => {
 
     expect(answers).toHaveLength(1);
     expect(prompts[0]!.user).toContain('none matched');
+  });
+
+  it('adds a saved correction for this site to the prompt, and only for its own field', async () => {
+    await saveFieldMapping({
+      domain: 'jobs.example.com',
+      resolvedLabel: 'Notice period',
+      correctedType: 'availability',
+    });
+    const { generator, prompts } = capturing([answerFor('f0'), answerFor('f1')]);
+
+    await generateAnswers(
+      {
+        fields: [
+          field({ tempId: 'f0' }),
+          field({ tempId: 'f1', resolvedLabel: 'Notice period', elementType: 'input:text' }),
+        ],
+        context,
+      },
+      generator,
+    );
+
+    const [, firstBlock, correctedBlock] = prompts[0]!.user.split('### Field ');
+    expect(correctedBlock).toContain('"availability"');
+    expect(firstBlock).not.toContain('previously corrected');
+  });
+
+  it('generates normally for a site with no saved corrections', async () => {
+    const { generator, prompts } = capturing([answerFor('f0')]);
+
+    await generateAnswers({ fields: [field()], context }, generator);
+
+    // The mapping cache is a convenience layer; its absence is the default path.
+    expect(prompts[0]!.user).not.toContain('previously corrected');
   });
 
   it('drops an answer whose tempId was never asked about', async () => {
@@ -346,5 +380,49 @@ describe('background REQUEST_GENERATION handler', () => {
       /API key/,
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('persists a correction sent as a SAVE_FIELD_MAPPING message', async () => {
+    await sendMessage('SAVE_FIELD_MAPPING', {
+      domain: 'jobs.example.com',
+      resolvedLabel: 'Tell us about you',
+      correctedType: 'cover letter',
+    });
+
+    expect(await getFieldMappings('jobs.example.com')).toEqual([
+      { resolvedLabel: 'Tell us about you', correctedType: 'cover letter' },
+    ]);
+  });
+
+  it('rejects an unusable correction so the card can say it was not saved', async () => {
+    await expect(
+      sendMessage('SAVE_FIELD_MAPPING', {
+        domain: 'jobs.example.com',
+        resolvedLabel: '',
+        correctedType: 'cover letter',
+      }),
+    ).rejects.toThrow(/needs a site, a field label/);
+    expect(await getFieldMappings('jobs.example.com')).toEqual([]);
+  });
+
+  it('still generates end to end when a correction is saved for the site', async () => {
+    vi.stubEnv(MOCK_GENERATOR_FLAG, 'true');
+    await saveProfile(profile());
+    await sendMessage('SAVE_FIELD_MAPPING', {
+      domain: 'jobs.example.com',
+      resolvedLabel: 'Notice period',
+      correctedType: 'availability',
+    });
+
+    // Reading the hint happens on the generation path, so a broken read would
+    // cost the drafts. That the hint reaches the prompt is asserted above, where
+    // the prompt is visible.
+    const answers = await sendMessage('REQUEST_GENERATION', {
+      fields: [field({ tempId: 'f0', resolvedLabel: 'Notice period' })],
+      context,
+    });
+
+    expect(answers).toHaveLength(1);
+    expect(await getFieldMappings('jobs.example.com')).toHaveLength(1);
   });
 });

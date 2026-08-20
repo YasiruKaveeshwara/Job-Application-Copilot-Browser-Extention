@@ -86,8 +86,9 @@ export default function App() {
         });
       }
     } catch (error) {
-      // Until Phase 13 wires up the INSERT_FIELD handler this is the path that
-      // runs, and it says so on the card instead of appearing to do nothing.
+      // The message never reached the page — a reloaded extension, or a tab the
+      // content script does not run in. Said on the card instead of appearing to
+      // do nothing.
       dispatch({
         type: 'insert-failed',
         tempId: card.tempId,
@@ -107,8 +108,8 @@ export default function App() {
         });
         dispatch({ type: 'correction-saved', tempId: card.tempId });
       } catch {
-        // The handler for this message lands in Phase 14; until then the failure
-        // shows on the card rather than being swallowed.
+        // The background refuses an incomplete correction and can fail on
+        // storage; either way the card says so rather than showing a tick.
         dispatch({
           type: 'correction-save-failed',
           tempId: card.tempId,
