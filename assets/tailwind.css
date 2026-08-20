@@ -1,1 +1,14 @@
-@import 'tailwindcss';
+/*
+ * Tailwind's automatic source detection scans the whole project, which for this
+ * repo means it also reads test specs, fixtures, and markdown — and any token in
+ * them that happens to look like a utility becomes a rule in the stylesheet the
+ * extension ships. `source(none)` turns that off so the sources are declared
+ * rather than discovered: only the UI is scanned, and only what the UI uses is
+ * built. Every class in this project lives under entrypoints/ (lib/ is logic and
+ * carries no markup), so that is the whole list.
+ *
+ * If a component is ever added outside entrypoints/, add it here or its classes
+ * will silently have no CSS.
+ */
+@import 'tailwindcss' source(none);
+@source '../entrypoints';

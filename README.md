@@ -24,6 +24,15 @@ edit, and insert every answer yourself.
 
 ## Setup
 
+A fresh clone needs two commands and your own API key:
+
+```bash
+npm install && npm run build
+```
+
+then load `.output/chrome-mv3/` unpacked in Chrome and paste your key into the
+options page. The long version, step by step:
+
 ### 1. Install dependencies
 
 ```bash
@@ -66,12 +75,17 @@ npm run build
 ```bash
 npm run dev          # dev server + unpacked extension (hot-reload)
 npm run build        # production build → .output/chrome-mv3/
+npm run zip          # build, then package it → .output/*.zip
 npm run typecheck    # wxt prepare && tsc --noEmit
 npm run lint         # eslint (0 warnings = passing)
 npm run test         # vitest unit tests (225 tests)
 npm run test:e2e     # playwright e2e tests (requires built extension)
 npm run format       # prettier --write
 ```
+
+`npm run test:e2e` starts the fixture server itself (`playwright.config.ts`), but
+it does **not** build — it loads `.output/chrome-mv3/`, so run `npm run build`
+first or the specs skip themselves with a message telling you to.
 
 ## Reviewing the panel without an API key (mock mode)
 
@@ -81,6 +95,12 @@ so the full scan → draft → review round trip works with no key and no spend:
 ```bash
 VITE_USE_MOCK_GENERATOR=true npm run dev
 ```
+
+The flag is read at build time, not runtime: a plain `npm run build` compiles the
+comparison to `false` and the stub is dropped from the bundle entirely, so a
+release build has no path back to it. `test/e2e/packaging.spec.ts` asserts that —
+and asserts the real Gemini generator is present, since "no mock" would also be
+true of a build with no generator at all.
 
 Then serve the test fixtures:
 
@@ -102,7 +122,44 @@ button to open the side panel, and press **Scan this page**.
 
 Any valid Gemini model ID can be typed into the model field in the options page.
 
+## What ships in a build
+
+`npm run build` writes nine files to `.output/chrome-mv3/` — a manifest, the
+service worker, the content script, the two extension pages and their chunks —
+totalling ~290 kB, of which two thirds is React. `npm run zip` packages the same
+output for distribution.
+
+`test/e2e/packaging.spec.ts` checks the artifact rather than the source, because a
+few things can only go wrong at packaging time:
+
+- **No dev-only code paths.** No mock generator, no Vite client, no hot-reload
+  hook, no source maps — a source map would ship this repo's source, comments and
+  all, inside the extension.
+- **Nothing key-shaped.** Nothing matching a Gemini key (`AIza…` plus 35
+  characters) appears in any bundled file. Your key belongs in extension storage,
+  which is written by the options page at runtime and never read by the build.
+- **The permission set that was reviewed**, and no more: `storage`, `scripting`,
+  `activeTab`, `sidePanel`. Not `tabs`, not `webNavigation` — Phase 16 established
+  that `chrome.scripting` alone is enough to reach frames.
+- **No stale references.** Every path the manifest and both HTML pages point at
+  exists in the output.
+- **No stylesheet padding.** Tailwind's automatic source detection reads the whole
+  project, so before `assets/tailwind.css` pinned its sources the shipped CSS
+  carried ~1.9 kB of rules built from _prose_ in specs and docs — `.container`
+  from the word "container", `.shadow` from "shadow DOM". The spec now asserts
+  every styled class appears somewhere in `entrypoints/`.
+- **`.gitignore` really covers the output and env files**, asserted through
+  `git check-ignore` rather than by reading the file (build guide rule 4: never
+  commit a key, a `.env`, or anything built).
+
 ## Known platform limits (Phase 16 verification)
+
+### Chrome only
+
+The review panel is a Chrome side panel (`chrome.sidePanel`), which Firefox does
+not implement — it has `sidebarAction` instead. The `dev:firefox` and
+`build:firefox` scripts come from WXT and are left in place, but nothing in this
+project has been verified against Firefox and the panel will not open there.
 
 ### Cross-origin forms
 

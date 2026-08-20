@@ -21,19 +21,33 @@ export { MockGenerator } from './mock-generator';
  */
 export const MOCK_GENERATOR_FLAG = 'VITE_USE_MOCK_GENERATOR';
 
-function readFlag(name: string): boolean {
-  // Read through a record: `ImportMetaEnv`'s index signature is typed as
-  // `string | boolean | undefined` and does not know about project-specific keys.
-  const env = import.meta.env as unknown as Record<string, unknown>;
-  return env[name] === 'true' || env[name] === true;
-}
-
-/** True when the mock generator is active, so the UI can say so. */
+/**
+ * True when this build wired in the mock generator.
+ *
+ * The env key is spelled out as a literal member access on purpose, here and in
+ * {@link getGenerator}, and must stay that way. Vite substitutes
+ * `import.meta.env.SOME_KEY` at build time, so a plain `npm run build` turns the
+ * comparison into a constant and the mock generator leaves the bundle entirely.
+ * Reading the same key dynamically (`env[MOCK_GENERATOR_FLAG]`) type-checks and
+ * behaves identically at runtime, but defeats the substitution: it ships the mock
+ * in every build and leaves a dev-only code path one environment variable away
+ * from being live in a release. `test/e2e/packaging.spec.ts` asserts the built
+ * output is free of it.
+ *
+ * The literal therefore duplicates {@link MOCK_GENERATOR_FLAG}, which is what
+ * lets tests flip the flag with `vi.stubEnv`. The unit test that does so is what
+ * keeps the two spellings honest — if they drift, it fails.
+ */
 export function usingMockGenerator(): boolean {
-  return readFlag(MOCK_GENERATOR_FLAG);
+  return import.meta.env.VITE_USE_MOCK_GENERATOR === 'true';
 }
 
 /** The generator for this build. Cheap to construct; not cached deliberately. */
 export function getGenerator(): Generator {
-  return usingMockGenerator() ? new MockGenerator() : new GeminiGenerator();
+  // Repeats the condition above rather than calling it: the minifier folds a
+  // literal comparison, but does not inline a function call to fold what it
+  // returns — and this is the branch that has to disappear from the build.
+  return import.meta.env.VITE_USE_MOCK_GENERATOR === 'true'
+    ? new MockGenerator()
+    : new GeminiGenerator();
 }
