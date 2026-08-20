@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# WXT build + generated output (never commit)
+.output/
+.wxt/
+dist/
+stats.html
+web-ext.config.ts
+
+# Secrets — never commit an API key or env file
+.env
+.env.*
+
+# Claude Code machine-local settings (contains local permission grants)
+.claude/settings.local.json
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Logs / OS cruft
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
