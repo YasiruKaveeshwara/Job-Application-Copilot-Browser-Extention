@@ -288,6 +288,10 @@ describe('describeGenerationFailure', () => {
 describe('background REQUEST_GENERATION handler', () => {
   beforeAll(() => {
     installExtensionGlobals();
+    // Startup also binds the side panel to the toolbar icon. The fake browser
+    // has no implementation for that, and the background is written to shrug it
+    // off, so stub it rather than let a warning print on every run.
+    vi.spyOn(fakeBrowser.sidePanel, 'setPanelBehavior').mockResolvedValue(undefined);
     // The messaging library permits one listener per message type per JS context
     // — correct for a service worker, which registers once on startup. So the
     // background is started once for this file rather than once per test.

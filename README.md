@@ -1,7 +1,7 @@
 # Job Application Copilot
 
 A browser extension (Manifest V3) that detects fields on job-application pages and
-drafts answers from your own profile using the Anthropic Messages API
+drafts answers from your own profile using the Google Gemini API
 (bring-your-own-key). It never auto-submits and never bulk-applies — you review,
 edit, and insert every answer yourself.
 
@@ -29,9 +29,22 @@ npm run test:e2e     # playwright (e2e)
 Load the unpacked extension from `.output/chrome-mv3/` via `chrome://extensions`
 (developer mode on) when not using the dev server.
 
+### Reviewing the panel without an API key
+
+`VITE_USE_MOCK_GENERATOR=true` swaps the real generator for a canned one, so the
+whole scan → draft → review round trip runs with no key and no spend:
+
+```bash
+VITE_USE_MOCK_GENERATOR=true npm run dev
+```
+
+Then open `test-fixtures/standard-labels.html` (served by
+`node test/e2e/static-server.mjs` on `http://localhost:3999`), click the toolbar
+button to open the side panel, and press **Scan this page**.
+
 ## API key
 
-The Anthropic API key is entered in the extension's options page and stored in
+The Gemini API key is entered in the extension's options page and stored in
 local extension storage only. **Never commit an API key or a `.env` file** —
 both are git-ignored.
 
