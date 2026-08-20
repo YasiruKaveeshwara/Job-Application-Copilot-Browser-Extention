@@ -2,6 +2,7 @@ import { defineContentScript } from '#imports';
 import { onMessage } from '../lib/messaging';
 import { detectFields, extractPageText } from '../lib/field-detector';
 import { buildJobContext } from '../lib/job-context';
+import { insertIntoField } from '../lib/insert-handler';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -20,6 +21,9 @@ export default defineContentScript({
       context: buildJobContext(extractPageText(), location.href, document.title),
     }));
 
-    // INSERT_FIELD is handled in Phase 13 (insert-into-page handler).
+    // INSERT_FIELD writes one reviewed draft into one field. It is the only
+    // thing this extension ever writes to a page, and never on its own
+    // initiative — the user presses Insert on a card they have read.
+    onMessage('INSERT_FIELD', ({ data }) => insertIntoField(document, data));
   },
 });
