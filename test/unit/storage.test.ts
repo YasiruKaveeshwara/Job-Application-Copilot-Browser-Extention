@@ -5,6 +5,11 @@ import {
   saveProfile,
   updateProfileSection,
   emptyProfile,
+  getSettings,
+  saveSettings,
+  defaultSettings,
+  DEFAULT_MODEL_ID,
+  CHEAP_MODEL_ID,
 } from '../../lib/storage';
 import type { ProfileData } from '../../lib/types';
 
@@ -83,5 +88,38 @@ describe('storage', () => {
     expect(readBack.workHistory).toEqual(data.workHistory);
     expect(readBack.standardAnswers).toEqual(data.standardAnswers);
     expect(readBack.stylePreferences).toEqual(data.stylePreferences);
+  });
+});
+
+describe('settings storage', () => {
+  beforeEach(() => {
+    fakeBrowser.reset();
+  });
+
+  it('returns no key and the default model on a fresh install', async () => {
+    const settings = await getSettings();
+    expect(settings).toEqual(defaultSettings());
+    expect(settings.apiKey).toBe('');
+    expect(settings.modelId).toBe(DEFAULT_MODEL_ID);
+  });
+
+  it('saves then reads back the key and model', async () => {
+    await saveSettings({ apiKey: 'AIza-example', modelId: CHEAP_MODEL_ID });
+    expect(await getSettings()).toEqual({ apiKey: 'AIza-example', modelId: CHEAP_MODEL_ID });
+  });
+
+  it('falls back to the default model if a stored record has an empty model ID', async () => {
+    await saveSettings({ apiKey: 'AIza-example', modelId: '' });
+    const settings = await getSettings();
+    expect(settings.modelId).toBe(DEFAULT_MODEL_ID);
+    expect(settings.apiKey).toBe('AIza-example');
+  });
+
+  it('keeps settings separate from the profile', async () => {
+    await saveSettings({ apiKey: 'AIza-example', modelId: DEFAULT_MODEL_ID });
+    // Saving a profile must not disturb the key, and vice versa.
+    await saveProfile(sampleProfile());
+    expect((await getSettings()).apiKey).toBe('AIza-example');
+    expect((await getProfile()).personal.name).toBe('Ada Lovelace');
   });
 });

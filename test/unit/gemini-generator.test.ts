@@ -1,0 +1,308 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { saveSettings, CHEAP_MODEL_ID } from '../../lib/storage';
+import {
+  GeminiGenerator,
+  GEMINI_MODELS_BASE,
+  generateContentUrl,
+} from '../../lib/generator/gemini-generator';
+import { GeneratorError } from '../../lib/generator/types';
+import type { BuiltPrompt } from '../../lib/generator/types';
+import type { GeneratedAnswer } from '../../lib/types';
+
+// Every test here runs against a stubbed global fetch and asserts on that stub,
+// so a real network call is impossible: an unstubbed request would fail the
+// call-count assertion rather than quietly hitting Google.
+
+const API_KEY = 'test-api-key-value';
+const MODEL_ID = 'gemini-test-model';
+
+const prompt: BuiltPrompt = {
+  system: 'You draft job application answers. Return JSON only.',
+  user: 'Field f0 — label: "Cover Letter" (textarea)',
+  fields: [{ tempId: 'f0', resolvedLabel: 'Cover Letter', elementType: 'textarea' }],
+};
+
+const answers: GeneratedAnswer[] = [
+  { tempId: 'f0', classifiedType: 'cover-letter', confidence: 'high', draftAnswer: 'Dear team,' },
+];
+
+function geminiOk(text: string, finishReason: string | undefined = 'STOP'): Response {
+  const payload = {
+    candidates: [{ content: { role: 'model', parts: [{ text }] }, finishReason }],
+    usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 20, totalTokenCount: 30 },
+    modelVersion: MODEL_ID,
+  };
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: () => Promise.resolve(payload),
+    text: () => Promise.resolve(JSON.stringify(payload)),
+  } as unknown as Response;
+}
+
+function geminiRaw(payload: unknown): Response {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: () => Promise.resolve(payload),
+    text: () => Promise.resolve(JSON.stringify(payload)),
+  } as unknown as Response;
+}
+
+function httpError(status: number, body: unknown): Response {
+  const raw = typeof body === 'string' ? body : JSON.stringify(body);
+  return {
+    ok: false,
+    status,
+    statusText: 'Error',
+    json: () => Promise.resolve(JSON.parse(raw)),
+    text: () => Promise.resolve(raw),
+  } as unknown as Response;
+}
+
+/** The single fetch call the generator is expected to make. */
+function callArgs(fetchMock: ReturnType<typeof vi.fn>): { url: string; init: RequestInit } {
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+  return { url, init };
+}
+
+function headersOf(init: RequestInit): Record<string, string> {
+  return init.headers as Record<string, string>;
+}
+
+describe('GeminiGenerator request shape', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    fakeBrowser.reset();
+    fetchMock = vi.fn().mockResolvedValue(geminiOk(JSON.stringify(answers)));
+    vi.stubGlobal('fetch', fetchMock);
+    await saveSettings({ apiKey: API_KEY, modelId: MODEL_ID });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('POSTs to the generateContent endpoint for the model ID from settings', async () => {
+    await new GeminiGenerator().generate(prompt);
+    const { url, init } = callArgs(fetchMock);
+
+    expect(url).toBe(`${GEMINI_MODELS_BASE}/${MODEL_ID}:generateContent`);
+    expect(url).toBe(generateContentUrl(MODEL_ID));
+    expect(init.method).toBe('POST');
+  });
+
+  it('follows the model ID when the setting changes, with no code change', async () => {
+    await saveSettings({ apiKey: API_KEY, modelId: CHEAP_MODEL_ID });
+    await new GeminiGenerator().generate(prompt);
+    expect(callArgs(fetchMock).url).toContain(`${CHEAP_MODEL_ID}:generateContent`);
+  });
+
+  it('sends the API key in the x-goog-api-key header and never in the URL', async () => {
+    await new GeminiGenerator().generate(prompt);
+    const { url, init } = callArgs(fetchMock);
+
+    expect(headersOf(init)['x-goog-api-key']).toBe(API_KEY);
+    // The key must stay out of URLs, logs and error reports.
+    expect(url).not.toContain(API_KEY);
+    expect(url).not.toContain('key=');
+  });
+
+  it('sends content-type application/json', async () => {
+    await new GeminiGenerator().generate(prompt);
+    expect(headersOf(callArgs(fetchMock).init)['content-type']).toBe('application/json');
+  });
+
+  it('sends the prompt as systemInstruction plus one user content part', async () => {
+    await new GeminiGenerator().generate(prompt);
+    const body = JSON.parse(callArgs(fetchMock).init.body as string);
+
+    expect(body.systemInstruction.parts[0].text).toBe(prompt.system);
+    expect(body.contents).toHaveLength(1);
+    expect(body.contents[0].role).toBe('user');
+    expect(body.contents[0].parts[0].text).toBe(prompt.user);
+  });
+
+  it('constrains the response to the GeneratedAnswer[] schema', async () => {
+    await new GeminiGenerator().generate(prompt);
+    const body = JSON.parse(callArgs(fetchMock).init.body as string);
+    const config = body.generationConfig;
+
+    expect(config.responseMimeType).toBe('application/json');
+    expect(config.responseSchema.type).toBe('ARRAY');
+    expect(config.responseSchema.items.required).toEqual([
+      'tempId',
+      'classifiedType',
+      'confidence',
+      'draftAnswer',
+    ]);
+    expect(config.responseSchema.items.properties.confidence.enum).toEqual(['high', 'low']);
+    expect(config.maxOutputTokens).toBeGreaterThan(0);
+  });
+
+  it('does not override sampling parameters', async () => {
+    await new GeminiGenerator().generate(prompt);
+    const config = JSON.parse(callArgs(fetchMock).init.body as string).generationConfig;
+    expect(config.temperature).toBeUndefined();
+    expect(config.topP).toBeUndefined();
+    expect(config.topK).toBeUndefined();
+  });
+
+  it('honours an overridden maxOutputTokens', async () => {
+    await new GeminiGenerator({ maxOutputTokens: 256 }).generate(prompt);
+    const config = JSON.parse(callArgs(fetchMock).init.body as string).generationConfig;
+    expect(config.maxOutputTokens).toBe(256);
+  });
+});
+
+describe('GeminiGenerator response handling', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    fakeBrowser.reset();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await saveSettings({ apiKey: API_KEY, modelId: MODEL_ID });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('parses a well-formed response into GeneratedAnswer[]', async () => {
+    fetchMock.mockResolvedValue(geminiOk(JSON.stringify(answers)));
+    await expect(new GeminiGenerator().generate(prompt)).resolves.toEqual(answers);
+  });
+
+  it('joins multiple text parts before parsing', async () => {
+    const json = JSON.stringify(answers);
+    const split = json.slice(0, 12);
+    const rest = json.slice(12);
+    fetchMock.mockResolvedValue(
+      geminiRaw({
+        candidates: [
+          { content: { parts: [{ text: split }, { text: rest }] }, finishReason: 'STOP' },
+        ],
+      }),
+    );
+    await expect(new GeminiGenerator().generate(prompt)).resolves.toEqual(answers);
+  });
+
+  it('throws an http-kind error carrying the status and the API message', async () => {
+    fetchMock.mockResolvedValue(
+      httpError(429, {
+        error: { code: 429, message: 'Quota exceeded for requests.', status: 'RESOURCE_EXHAUSTED' },
+      }),
+    );
+
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error).toBeInstanceOf(GeneratorError);
+    expect(error.kind).toBe('http');
+    expect(error.status).toBe(429);
+    expect(error.message).toContain('RESOURCE_EXHAUSTED');
+    expect(error.message).toContain('Quota exceeded');
+  });
+
+  it('surfaces a non-JSON error body rather than crashing on it', async () => {
+    fetchMock.mockResolvedValue(httpError(502, '<html>Bad Gateway</html>'));
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('http');
+    expect(error.status).toBe(502);
+    expect(error.message).toContain('Bad Gateway');
+  });
+
+  it('throws a network-kind error when the request never lands', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('network');
+    expect(error.message).toContain('Failed to fetch');
+  });
+
+  it('throws a response-kind error when the model text is not valid JSON', async () => {
+    fetchMock.mockResolvedValue(geminiOk('Sure, here are some answers!'));
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('response');
+    expect(error.message).toContain('answer schema');
+  });
+
+  it('throws a response-kind error when an answer violates the schema', async () => {
+    fetchMock.mockResolvedValue(
+      geminiOk(JSON.stringify([{ ...answers[0]!, confidence: 'medium' }])),
+    );
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('response');
+    expect(error.message).toContain('confidence');
+  });
+
+  it('throws a response-kind error when the prompt was blocked', async () => {
+    fetchMock.mockResolvedValue(geminiRaw({ promptFeedback: { blockReason: 'SAFETY' } }));
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('response');
+    expect(error.message).toContain('SAFETY');
+  });
+
+  it('throws a response-kind error when generation was truncated', async () => {
+    fetchMock.mockResolvedValue(geminiOk('[{"tempId":"f0"', 'MAX_TOKENS'));
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('response');
+    expect(error.message).toContain('MAX_TOKENS');
+  });
+
+  it('throws a response-kind error when there are no candidates', async () => {
+    fetchMock.mockResolvedValue(geminiRaw({ candidates: [] }));
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('response');
+    expect(error.message).toContain('no candidates');
+  });
+
+  it('throws a response-kind error on an empty answer', async () => {
+    fetchMock.mockResolvedValue(geminiOk('   '));
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('response');
+    expect(error.message).toContain('empty answer');
+  });
+});
+
+describe('GeminiGenerator configuration guard', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fakeBrowser.reset();
+    fetchMock = vi.fn().mockResolvedValue(geminiOk(JSON.stringify(answers)));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('throws a config-kind error and sends nothing when no key is saved', async () => {
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('config');
+    expect(error.message).toMatch(/options page/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('treats a whitespace-only key as missing', async () => {
+    await saveSettings({ apiKey: '   ', modelId: MODEL_ID });
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('config');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+/** Await a rejection and return it typed, so `kind`/`status` can be asserted. */
+async function captureError(promise: Promise<unknown>): Promise<GeneratorError> {
+  try {
+    await promise;
+  } catch (caught) {
+    expect(caught).toBeInstanceOf(GeneratorError);
+    return caught as GeneratorError;
+  }
+  throw new Error('Expected the generator to reject, but it resolved');
+}

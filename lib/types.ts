@@ -45,3 +45,16 @@ export interface GeneratedAnswer {
   confidence: 'high' | 'low';
   draftAnswer: string;
 }
+
+/**
+ * User-configurable settings for the LLM call (build guide, section 1: the model
+ * ID is a setting, never a hardcoded literal).
+ *
+ * Bring-your-own-key: the key lives in local extension storage on this device
+ * only. It is never synced to the browser account and never leaves the machine
+ * except in the request to the provider.
+ */
+export interface Settings {
+  apiKey: string;
+  modelId: string;
+}

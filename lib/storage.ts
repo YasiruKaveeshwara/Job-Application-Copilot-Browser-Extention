@@ -1,5 +1,5 @@
 import { storage } from '#imports';
-import type { ProfileData } from './types';
+import type { ProfileData, Settings } from './types';
 
 // Local-only persistence for the user's profile. The `local:` prefix keeps the
 // data on-device (never synced to the browser account), per the build guide,
@@ -45,4 +45,51 @@ export async function updateProfileSection<K extends keyof ProfileData>(
 ): Promise<void> {
   const current = await profileItem.getValue();
   await profileItem.setValue({ ...current, [key]: value });
+}
+
+// ---------------------------------------------------------------------------
+// Settings (Gemini API key + model ID)
+// ---------------------------------------------------------------------------
+
+const SETTINGS_KEY = 'local:settings' as const;
+const SETTINGS_VERSION = 1;
+
+/**
+ * Default generation model. Deliberately a constant read through settings rather
+ * than a literal at the call site, so it can be swapped for a cheaper/faster one
+ * without touching the generator.
+ */
+export const DEFAULT_MODEL_ID = 'gemini-3.7-flash';
+
+/** The cheaper, faster alternative. Same request shape, lower cost per page. */
+export const CHEAP_MODEL_ID = 'gemini-3.5-flash-lite';
+
+/** Models offered in the options page picker. Any other ID can still be stored. */
+export const MODEL_CHOICES: { id: string; label: string }[] = [
+  { id: DEFAULT_MODEL_ID, label: 'Gemini 3.7 Flash — best drafts (default)' },
+  { id: CHEAP_MODEL_ID, label: 'Gemini 3.5 Flash Lite — fastest and cheapest' },
+  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — middle ground' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — older stable' },
+];
+
+/** Settings for a fresh install: no key yet, default model. */
+export function defaultSettings(): Settings {
+  return { apiKey: '', modelId: DEFAULT_MODEL_ID };
+}
+
+const settingsItem = storage.defineItem<Settings>(SETTINGS_KEY, {
+  version: SETTINGS_VERSION,
+  fallback: defaultSettings(),
+});
+
+/** Read the stored settings, falling back to defaults on a fresh install. */
+export async function getSettings(): Promise<Settings> {
+  const stored = await settingsItem.getValue();
+  // Guard against a partially-written record from an older build: an empty model
+  // ID would produce an unusable request URL.
+  return { ...defaultSettings(), ...stored, modelId: stored.modelId || DEFAULT_MODEL_ID };
+}
+
+export async function saveSettings(value: Settings): Promise<void> {
+  await settingsItem.setValue(value);
 }

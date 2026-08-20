@@ -23,7 +23,10 @@ export function StylePreferencesSection({
         <select
           value={value.length}
           onChange={(e) =>
-            onChange({ ...value, length: e.target.value as ProfileData['stylePreferences']['length'] })
+            onChange({
+              ...value,
+              length: e.target.value as ProfileData['stylePreferences']['length'],
+            })
           }
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 sm:w-48"
         >

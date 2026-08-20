@@ -99,8 +99,8 @@ describe('messaging contracts', () => {
     );
 
     // The UI can try/catch rather than inspecting a sentinel value.
-    await expect(
-      sendMessage('REQUEST_GENERATION', { fields: [field()], context }),
-    ).rejects.toThrow(/generation failed/);
+    await expect(sendMessage('REQUEST_GENERATION', { fields: [field()], context })).rejects.toThrow(
+      /generation failed/,
+    );
   });
 });

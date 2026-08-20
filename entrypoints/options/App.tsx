@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { ProfileData } from '@/lib/types';
-import { getProfile, saveProfile, emptyProfile } from '@/lib/storage';
+import type { ProfileData, Settings } from '@/lib/types';
+import {
+  getProfile,
+  saveProfile,
+  emptyProfile,
+  getSettings,
+  saveSettings,
+  defaultSettings,
+} from '@/lib/storage';
 import { Button } from './components/primitives';
+import { ApiSettingsSection } from './components/ApiSettingsSection';
 import { PersonalSection } from './components/PersonalSection';
 import { EducationSection } from './components/EducationSection';
 import { WorkHistorySection } from './components/WorkHistorySection';
@@ -14,16 +22,18 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function App() {
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<SaveStatus>('idle');
 
-  // Load existing profile on mount.
+  // Load existing profile and settings on mount.
   useEffect(() => {
     let active = true;
-    getProfile()
-      .then((p) => {
+    Promise.all([getProfile(), getSettings()])
+      .then(([storedProfile, storedSettings]) => {
         if (active) {
-          setProfile(p);
+          setProfile(storedProfile);
+          setSettings(storedSettings);
           setLoaded(true);
         }
       })
@@ -41,10 +51,15 @@ export default function App() {
     setStatus('idle');
   };
 
+  const patchSettings = (value: Settings) => {
+    setSettings(value);
+    setStatus('idle');
+  };
+
   const handleSave = async () => {
     setStatus('saving');
     try {
-      await saveProfile(profile);
+      await Promise.all([saveProfile(profile), saveSettings(settings)]);
       setStatus('saved');
     } catch {
       setStatus('error');
@@ -54,7 +69,7 @@ export default function App() {
   if (!loaded) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">
-        Loading profile…
+        Loading…
       </div>
     );
   }
@@ -65,19 +80,22 @@ export default function App() {
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <div>
             <h1 className="text-xl font-semibold text-gray-900">Job Application Copilot</h1>
-            <p className="text-sm text-gray-500">Your profile. Stored locally on this device only.</p>
+            <p className="text-sm text-gray-500">
+              Your profile and API key. Stored locally on this device only.
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {status === 'saved' && <span className="text-sm text-green-600">Saved ✓</span>}
             {status === 'error' && <span className="text-sm text-red-600">Save failed</span>}
             <Button variant="primary" onClick={handleSave}>
-              {status === 'saving' ? 'Saving…' : 'Save profile'}
+              {status === 'saving' ? 'Saving…' : 'Save'}
             </Button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl space-y-6 px-6 py-8">
+        <ApiSettingsSection value={settings} onChange={patchSettings} />
         <PersonalSection value={profile.personal} onChange={(v) => patch('personal', v)} />
         <EducationSection value={profile.education} onChange={(v) => patch('education', v)} />
         <WorkHistorySection value={profile.workHistory} onChange={(v) => patch('workHistory', v)} />
@@ -97,7 +115,7 @@ export default function App() {
 
         <div className="flex justify-end pb-12">
           <Button variant="primary" onClick={handleSave}>
-            {status === 'saving' ? 'Saving…' : 'Save profile'}
+            {status === 'saving' ? 'Saving…' : 'Save'}
           </Button>
         </div>
       </main>

@@ -37,14 +37,7 @@ const FIELD_SELECTOR = [
  * generator is never asked to write a value for a submit button or a hidden
  * CSRF token.
  */
-const IGNORED_INPUT_TYPES = new Set([
-  'hidden',
-  'submit',
-  'button',
-  'reset',
-  'image',
-  'file',
-]);
+const IGNORED_INPUT_TYPES = new Set(['hidden', 'submit', 'button', 'reset', 'image', 'file']);
 
 let domRefCounter = 0;
 

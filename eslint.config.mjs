@@ -47,16 +47,13 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          selector:
-            "MemberExpression[property.name='sendMessage'][object.property.name='runtime']",
+          selector: "MemberExpression[property.name='sendMessage'][object.property.name='runtime']",
           message:
             'Use sendMessage from lib/messaging.ts instead of raw browser.runtime.sendMessage.',
         },
         {
-          selector:
-            "MemberExpression[property.name='onMessage'][object.property.name='runtime']",
-          message:
-            'Use onMessage from lib/messaging.ts instead of raw browser.runtime.onMessage.',
+          selector: "MemberExpression[property.name='onMessage'][object.property.name='runtime']",
+          message: 'Use onMessage from lib/messaging.ts instead of raw browser.runtime.onMessage.',
         },
       ],
     },

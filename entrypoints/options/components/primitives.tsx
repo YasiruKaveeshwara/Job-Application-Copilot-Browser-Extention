@@ -164,9 +164,7 @@ export function StringListEditor({
             </Button>
           </div>
         ))}
-        {values.length === 0 && (
-          <p className="text-xs text-gray-400">None yet.</p>
-        )}
+        {values.length === 0 && <p className="text-xs text-gray-400">None yet.</p>}
       </div>
       <div className="mt-2">
         <Button onClick={add}>{addLabel}</Button>

@@ -1,5 +1,12 @@
 import type { ProfileData } from '@/lib/types';
-import { Section, TextInput, TextArea, Button, RepeatableCard, StringListEditor } from './primitives';
+import {
+  Section,
+  TextInput,
+  TextArea,
+  Button,
+  RepeatableCard,
+  StringListEditor,
+} from './primitives';
 
 type Project = ProfileData['projects'][number];
 
@@ -21,8 +28,7 @@ export function ProjectsSection({
   const update = (i: number, entry: Project) =>
     onChange(value.map((e, idx) => (idx === i ? entry : e)));
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
-  const add = () =>
-    onChange([...value, { ...emptyEntry, techStack: [], narrativeFragments: [] }]);
+  const add = () => onChange([...value, { ...emptyEntry, techStack: [], narrativeFragments: [] }]);
 
   return (
     <Section
