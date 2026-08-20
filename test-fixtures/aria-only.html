@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ARIA-only Fixture</title>
+  </head>
+  <body>
+    <h1>Application form — ARIA labels only</h1>
+    <form>
+      <!-- No <label> element: label comes from aria-label. -->
+      <p>
+        <input type="tel" aria-label="Phone Number" />
+      </p>
+
+      <!-- Label comes from aria-labelledby pointing at a separate element. -->
+      <p>
+        <span id="linkedin-label">LinkedIn URL</span>
+        <input type="url" aria-labelledby="linkedin-label" />
+      </p>
+    </form>
+  </body>
+</html>

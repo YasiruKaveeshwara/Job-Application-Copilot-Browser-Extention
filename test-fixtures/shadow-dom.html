@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shadow DOM Fixture</title>
+  </head>
+  <body>
+    <h1>Application form — inside an open shadow root</h1>
+
+    <!-- A custom element whose open shadow root contains a real input. The
+         detector must descend into element.shadowRoot to find it. -->
+    <my-field></my-field>
+
+    <script>
+      class MyField extends HTMLElement {
+        constructor() {
+          super();
+          const root = this.attachShadow({ mode: 'open' });
+          const label = document.createElement('label');
+          label.setAttribute('for', 'shadow-input');
+          label.textContent = 'Shadow Field';
+          const input = document.createElement('input');
+          input.id = 'shadow-input';
+          input.type = 'text';
+          root.append(label, input);
+        }
+      }
+      customElements.define('my-field', MyField);
+    </script>
+  </body>
+</html>

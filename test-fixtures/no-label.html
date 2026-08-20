@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>No-label Fixture</title>
+  </head>
+  <body>
+    <h1>Application form — no associated labels</h1>
+    <form>
+      <!-- Proximity case: the nearest preceding text is the intended label. -->
+      <p>Years of Experience</p>
+      <input id="experience" type="number" placeholder="e.g. 5" />
+
+      <!-- Placeholder-only, with descriptive preceding text for proximity. -->
+      <div>Portfolio Website</div>
+      <input id="portfolio" type="url" placeholder="https://…" />
+
+      <!-- Truly bare input: only a placeholder, no nearby descriptive text.
+           Exercises the 'none' / weak-proximity path. -->
+      <input id="unlabeled" type="text" placeholder="untitled" />
+    </form>
+  </body>
+</html>

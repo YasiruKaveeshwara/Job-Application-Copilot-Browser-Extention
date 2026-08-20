@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>React Controlled Input Fixture</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.2.8",
+          "react-dom/client": "https://esm.sh/react-dom@19.2.8/client"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Application form — React-controlled input</h1>
+    <div id="root"></div>
+
+    <script type="module">
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+
+      const e = React.createElement;
+
+      function App() {
+        const [value, setValue] = React.useState('');
+        return e(
+          'form',
+          null,
+          e('label', { htmlFor: 'react-input' }, 'React Controlled'),
+          e('input', {
+            id: 'react-input',
+            type: 'text',
+            value,
+            onChange: (ev) => setValue(ev.target.value),
+          }),
+          // This mirror reflects REACT STATE, not the raw DOM value. Phase 13
+          // asserts against it to prove the framework's own state updated (a
+          // naive `.value = x` would leave this stale while the DOM shows text).
+          e('output', { id: 'react-state-mirror', 'data-testid': 'mirror' }, value),
+        );
+      }
+
+      createRoot(document.getElementById('root')).render(e(App));
+    </script>
+  </body>
+</html>

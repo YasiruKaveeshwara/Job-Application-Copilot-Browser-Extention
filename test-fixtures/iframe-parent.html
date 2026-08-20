@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Iframe Parent Fixture</title>
+  </head>
+  <body>
+    <h1>Application form — parent page</h1>
+    <form>
+      <p>
+        <label for="parent-name">Parent Name</label>
+        <input id="parent-name" name="parent-name" type="text" />
+      </p>
+    </form>
+
+    <!-- Same-origin iframe (served from the same static server) with its own
+         form, to validate allFrames: true detection. -->
+    <iframe src="/iframe-child.html" title="Nested application form" width="400" height="200"></iframe>
+  </body>
+</html>
