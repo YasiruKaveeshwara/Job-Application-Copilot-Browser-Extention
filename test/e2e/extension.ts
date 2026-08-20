@@ -60,7 +60,7 @@ export async function extensionId(context: BrowserContext): Promise<string> {
   return id;
 }
 
-/** The slice of the extension API the injected snippet uses. */
+/** The slice of the extension API the injected snippets use. */
 interface ChromeSlice {
   runtime: { lastError?: { message?: string } };
   tabs: {
@@ -72,6 +72,12 @@ interface ChromeSlice {
       callback: (response: unknown) => void,
     ): void;
   };
+  scripting: {
+    executeScript(injection: {
+      target: { tabId: number; allFrames: boolean };
+      func: () => string;
+    }): Promise<{ frameId: number; result?: string }[]>;
+  };
 }
 
 export type PageMessageAttempt<T> =
@@ -80,22 +86,27 @@ export type PageMessageAttempt<T> =
   | { ok: false; message: string; lastError: string };
 
 /**
- * Send one of the extension's own messages to the active tab's main frame.
+ * Send one of the extension's own messages to a frame of the active tab.
  *
  * Sent from the service worker, because that is a context inside the extension:
  * the wire shape is @webext-core/messaging's and the transport is the same
  * callback one lib/messaging.ts uses, so a spec sees exactly what the side panel
  * would see — including that a frame with no listener yields an undefined
  * response rather than a rejection.
+ *
+ * `frameId` defaults to 0, the top frame, which is the only one the shipped
+ * panel addresses. Passing another id is how a spec reaches into an iframe (see
+ * cross-origin.spec.ts).
  */
 export async function sendToActiveTab<T>(
   context: BrowserContext,
   type: keyof ProtocolMap,
   data?: unknown,
+  frameId = 0,
 ): Promise<PageMessageAttempt<T>> {
   const worker = await backgroundWorker(context);
   return (await worker.evaluate(
-    async ({ type, data }) => {
+    async ({ type, data, frameId }) => {
       const api = (globalThis as unknown as { chrome: ChromeSlice }).chrome;
       const [tab] = await api.tabs.query({ active: true, currentWindow: true });
       if (tab?.id === undefined) {
@@ -106,46 +117,80 @@ export async function sendToActiveTab<T>(
         response: { res?: unknown; err?: { message?: string } } | undefined;
         lastError: string;
       }>((resolve) => {
-        api.tabs.sendMessage(
-          tab.id!,
-          { id: 1, type, data, timestamp: 1 },
-          { frameId: 0 },
-          (raw) => {
-            // lastError is only valid inside the callback, so it is read here.
-            resolve({
-              response: raw as { res?: unknown; err?: { message?: string } } | undefined,
-              lastError: api.runtime.lastError?.message ?? '',
-            });
-          },
-        );
+        api.tabs.sendMessage(tab.id!, { id: 1, type, data, timestamp: 1 }, { frameId }, (raw) => {
+          // lastError is only valid inside the callback, so it is read here.
+          resolve({
+            response: raw as { res?: unknown; err?: { message?: string } } | undefined,
+            lastError: api.runtime.lastError?.message ?? '',
+          });
+        });
       });
 
       if (response?.res !== undefined) return { ok: true, result: response.res };
       return { ok: false, message: response?.err?.message ?? 'No response', lastError };
     },
-    { type, data },
+    { type, data, frameId },
   )) as PageMessageAttempt<T>;
 }
 
 /**
- * Scan the active tab, retrying briefly.
+ * Scan a frame of the active tab, retrying briefly.
  *
  * The content script registers its listener at document_idle, which can land a
  * moment after `goto` resolves; retrying is the difference between a real
  * failure and a race.
  */
-export async function scanActiveTab(context: BrowserContext): Promise<ScanResult> {
+export async function scanActiveTab(context: BrowserContext, frameId = 0): Promise<ScanResult> {
   let last: PageMessageAttempt<ScanResult> = {
     ok: false,
     message: 'never attempted',
     lastError: '',
   };
   for (let attempt = 0; attempt < 10; attempt++) {
-    last = await sendToActiveTab<ScanResult>(context, 'TRIGGER_SCAN');
+    last = await sendToActiveTab<ScanResult>(context, 'TRIGGER_SCAN', undefined, frameId);
     if (last.ok) return last.result;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(`TRIGGER_SCAN failed: ${last.ok ? '' : `${last.message} (${last.lastError})`}`);
+}
+
+/** One frame the extension was able to inject into, with the URL it reported. */
+export interface FrameProbe {
+  frameId: number;
+  url: string;
+}
+
+export type FrameProbeResult = { ok: true; frames: FrameProbe[] } | { ok: false; error: string };
+
+/**
+ * Every frame of the active tab the extension can actually reach.
+ *
+ * `chrome.scripting.executeScript` with `allFrames` is the way to enumerate
+ * frames on the permissions this extension asks for — `webNavigation`, which
+ * would give `getAllFrames` directly, is deliberately not in the manifest. The
+ * result is therefore not "the frames that exist" (Playwright's `page.frames()`
+ * is the authority on that) but "the frames host_permissions covers", which is
+ * exactly what Phase 16 is about.
+ */
+export async function reachableFrames(context: BrowserContext): Promise<FrameProbeResult> {
+  const worker = await backgroundWorker(context);
+  return (await worker.evaluate(async () => {
+    const api = (globalThis as unknown as { chrome: ChromeSlice }).chrome;
+    const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id === undefined) return { ok: false, error: 'No active tab.' };
+    try {
+      const injected = await api.scripting.executeScript({
+        target: { tabId: tab.id!, allFrames: true },
+        func: () => location.href,
+      });
+      return {
+        ok: true,
+        frames: injected.map((frame) => ({ frameId: frame.frameId, url: frame.result ?? '' })),
+      };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  })) as FrameProbeResult;
 }
 
 /** Insert one answer into the active tab, as the panel's Insert button does. */

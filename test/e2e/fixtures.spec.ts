@@ -10,6 +10,7 @@ const FIXTURES: { path: string; present: string }[] = [
   { path: '/shadow-dom.html', present: 'my-field' },
   { path: '/iframe-parent.html', present: 'iframe' },
   { path: '/iframe-child.html', present: '#child-email' },
+  { path: '/cross-origin-parent.html', present: 'iframe#cross-origin-child' },
   { path: '/react-controlled-input.html', present: '#react-input' },
 ];
 

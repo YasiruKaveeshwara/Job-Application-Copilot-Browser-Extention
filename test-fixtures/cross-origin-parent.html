@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cross-origin Parent Fixture</title>
+  </head>
+
+  <body>
+    <h1>Application form — parent page with a cross-origin child</h1>
+    <form>
+      <p>
+        <label for="parent-name">Parent Name</label>
+        <input id="parent-name" name="parent-name" type="text" />
+      </p>
+    </form>
+
+    <!-- The shape of a real careers page: the company's own page hosts the
+          chrome, and the form itself is served by a different origin (an ATS).
+          The src is set from script so the fixture works on whatever port the
+          test server is on; `localhost` and `127.0.0.1` are the same server but
+          genuinely different origins, which is all this needs to reproduce. -->
+    <iframe
+      id="cross-origin-child"
+      title="Nested application form"
+      width="400"
+      height="200"
+    ></iframe>
+    <script>
+      const other = location.hostname === '127.0.0.1' ? 'localhost' : '127.0.0.1';
+      document.getElementById('cross-origin-child').src =
+        `http://${other}:${location.port}/iframe-child.html`;
+    </script>
+  </body>
+</html>
