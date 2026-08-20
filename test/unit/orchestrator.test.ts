@@ -180,6 +180,85 @@ describe('generateAnswers', () => {
     expect(prompts[0]!.user).not.toContain('previously corrected');
   });
 
+  it('does not pay for the same field, job, and profile twice', async () => {
+    await saveProfile(profile());
+    const { generator, prompts } = capturing([answerFor('f0')]);
+
+    const first = await generateAnswers({ fields: [field()], context }, generator);
+    const second = await generateAnswers({ fields: [field()], context }, generator);
+
+    // The whole point of Phase 15: the second scan costs nothing.
+    expect(prompts).toHaveLength(1);
+    expect(second).toEqual(first);
+  });
+
+  it('asks only about the fields it does not already have a draft for', async () => {
+    await saveProfile(profile());
+    const { generator, prompts } = capturing([answerFor('f0'), answerFor('f1')]);
+    const cover = field({ tempId: 'f0' });
+    const notice = field({ tempId: 'f1', resolvedLabel: 'Notice period' });
+
+    await generateAnswers({ fields: [cover], context }, generator);
+    const both = await generateAnswers({ fields: [cover, notice], context }, generator);
+
+    // A partial hit must still cost only the part that is missing.
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]!.user).toContain('## Fields (1)');
+    expect(prompts[1]!.user).toContain('Notice period');
+    // And the answers still come back for every field, in the order they were sent.
+    expect(both.map((a) => a.tempId)).toEqual(['f0', 'f1']);
+  });
+
+  it('regenerates after the profile content behind a field changes', async () => {
+    await saveProfile(profile());
+    const { generator, prompts } = capturing([answerFor('f0')]);
+
+    await generateAnswers({ fields: [field()], context }, generator);
+
+    const edited = profile();
+    edited.projects[0]!.narrativeFragments = ['Rewrote the sync layer to survive a week offline'];
+    await saveProfile(edited);
+    await generateAnswers({ fields: [field()], context }, generator);
+
+    // A stale draft written from replaced profile text is worse than paying again.
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]!.user).toContain('survive a week offline');
+  });
+
+  it('keeps the draft when a profile edit changes nothing this field uses', async () => {
+    await saveProfile(profile());
+    const { generator, prompts } = capturing([answerFor('f0')]);
+
+    await generateAnswers({ fields: [field()], context }, generator);
+
+    const edited = profile();
+    edited.personal.phone = '+94 71 000 0000';
+    await saveProfile(edited);
+    await generateAnswers({ fields: [field()], context }, generator);
+
+    // The key holds what actually reached the prompt for this field, so an edit
+    // elsewhere in the profile does not throw away work it did not affect.
+    expect(prompts).toHaveLength(1);
+  });
+
+  it('regenerates after a correction is saved for the field', async () => {
+    await saveProfile(profile());
+    const { generator, prompts } = capturing([answerFor('f0')]);
+
+    await generateAnswers({ fields: [field()], context }, generator);
+    await saveFieldMapping({
+      domain: 'jobs.example.com',
+      resolvedLabel: field().resolvedLabel,
+      correctedType: 'experience summary',
+    });
+    await generateAnswers({ fields: [field()], context }, generator);
+
+    // Correcting a field is the user saying the last draft answered the wrong
+    // question; serving that draft back out of the cache would ignore them.
+    expect(prompts).toHaveLength(2);
+    expect(prompts[1]!.user).toContain('"experience summary"');
+  });
+
   it('drops an answer whose tempId was never asked about', async () => {
     const { generator } = capturing([answerFor('f0'), answerFor('hallucinated')]);
 

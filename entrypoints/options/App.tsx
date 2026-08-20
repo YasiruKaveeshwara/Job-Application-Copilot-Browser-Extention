@@ -10,6 +10,7 @@ import {
 } from '@/lib/storage';
 import { Button } from './components/primitives';
 import { ApiSettingsSection } from './components/ApiSettingsSection';
+import { CachedDraftsSection } from './components/CachedDraftsSection';
 import { PersonalSection } from './components/PersonalSection';
 import { EducationSection } from './components/EducationSection';
 import { WorkHistorySection } from './components/WorkHistorySection';
@@ -112,6 +113,7 @@ export default function App() {
           value={profile.stylePreferences}
           onChange={(v) => patch('stylePreferences', v)}
         />
+        <CachedDraftsSection />
 
         <div className="flex justify-end pb-12">
           <Button variant="primary" onClick={handleSave}>

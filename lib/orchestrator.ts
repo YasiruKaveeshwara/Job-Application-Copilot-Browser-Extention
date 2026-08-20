@@ -3,8 +3,10 @@ import type { GenerationRequest } from './messaging';
 import type { Generator } from './generator/types';
 import { GeneratorError } from './generator/types';
 import { getGenerator } from './generator';
-import { getProfile } from './storage';
+import { getProfile, getSettings } from './storage';
 import { correctionHints } from './mapping-cache';
+import { answerCacheKeys, readCachedAnswers, writeCachedAnswers } from './cache';
+import type { CacheInputs } from './cache';
 import { retrieveFragments } from './retrieval';
 import { buildPrompt } from './prompt-builder';
 import { validateGeneratedAnswers } from './schema-validator';
@@ -107,21 +109,45 @@ export async function generateAnswers(
       fragmentsByField[field.tempId] = retrieveFragments(field, request.context, profile);
     }
 
+    // Saved corrections, applied only after the generic detector has run, and
+    // only as a hint in the prompt (build guide, Phase 14).
+    const hintsByField = await correctionHints(request.fields, request.context.url);
+
+    // What has already been paid for. The key covers everything above plus the
+    // model, so a hit means the same question, the same profile material, and the
+    // same model as last time (build guide, Phase 15).
+    const { modelId } = await getSettings();
+    const cacheInputs: CacheInputs[] = request.fields.map((field) => ({
+      field,
+      context: request.context,
+      fragments: fragmentsByField[field.tempId] ?? [],
+      style: profile.stylePreferences,
+      hint: hintsByField[field.tempId] ?? '',
+      modelId,
+    }));
+    const keys = await answerCacheKeys(cacheInputs);
+    const cached = await readCachedAnswers(keys);
+
+    const missing = request.fields.filter((field) => cached[field.tempId] === undefined);
+    // Every field answered from cache: no prompt, no request, no key needed.
+    if (missing.length === 0) return reconcile(Object.values(cached), request.fields);
+
     const prompt = buildPrompt(
-      request.fields,
+      missing,
       request.context,
       fragmentsByField,
       profile.stylePreferences,
-      // Saved corrections, applied only after the generic detector has run, and
-      // only as a hint in the prompt (build guide, Phase 14).
-      await correctionHints(request.fields, request.context.url),
+      hintsByField,
     );
 
     // Validated again here even though GeminiGenerator already validates: this is
     // the boundary the UI trusts, and it must hold for any Generator, including
     // one written later that returns whatever its provider handed back.
     const validated = validateGeneratedAnswers(await generator.generate(prompt));
-    return reconcile(validated, request.fields);
+    const fresh = reconcile(validated, missing);
+    // After the answers are in hand, and never in a way that can fail the call.
+    await writeCachedAnswers(keys, fresh);
+    return reconcile([...Object.values(cached), ...fresh], request.fields);
   } catch (error) {
     // The full error (stack, cause, provider detail) goes to the service worker
     // log; only the mapped sentence crosses back to the UI. Never log the prompt
