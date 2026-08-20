@@ -38,6 +38,29 @@ export default tseslint.config(
       globals: { ...globals.node },
     },
   },
+  // Phase 8 acceptance criterion, enforced mechanically: message passing goes
+  // through the typed helpers in lib/messaging.ts, nowhere else.
+  {
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['lib/messaging.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[property.name='sendMessage'][object.property.name='runtime']",
+          message:
+            'Use sendMessage from lib/messaging.ts instead of raw browser.runtime.sendMessage.',
+        },
+        {
+          selector:
+            "MemberExpression[property.name='onMessage'][object.property.name='runtime']",
+          message:
+            'Use onMessage from lib/messaging.ts instead of raw browser.runtime.onMessage.',
+        },
+      ],
+    },
+  },
   // Disable formatting rules that conflict with Prettier. Keep last.
   prettier,
 );
