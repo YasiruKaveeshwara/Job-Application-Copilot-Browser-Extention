@@ -14,11 +14,21 @@ export default defineConfig({
     description:
       'AI copilot that detects application form fields and drafts answers from your profile. No auto-submit.',
     permissions: ['storage', 'scripting', 'activeTab'],
-    // The toolbar button is how the review panel is opened. Chrome needs both
-    // this entry and sidePanel.setPanelBehavior (see entrypoints/background.ts);
-    // WXT adds side_panel.default_path and the sidePanel permission itself, from
-    // the sidepanel entrypoint.
-    action: { default_title: 'Open Job Application Copilot' },
+    action: {
+      default_title: 'Open Job Application Copilot',
+      default_icon: {
+        16: 'icon-16.png',
+        32: 'icon-32.png',
+        48: 'icon-48.png',
+        128: 'icon-128.png',
+      },
+    },
+    icons: {
+      16: 'icon-16.png',
+      32: 'icon-32.png',
+      48: 'icon-48.png',
+      128: 'icon-128.png',
+    },
     // Broad host access is required so field detection works on arbitrary job
     // sites and their cross-origin iframes. Narrowing this breaks the
     // universal-detection requirement (see build guide, Phase 1).

@@ -19,28 +19,51 @@ export function ResumeVariantsSection({
 
   return (
     <Section
-      title="Resume variants"
-      description="File references only for the MVP — no upload handling yet."
+      title="Resume Variants & Target Roles"
+      badge={`${value.length} variants`}
+      description="Different versions of your CV tailored for specific specializations (e.g. Frontend vs. Fullstack)."
+      icon={
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+        >
+          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+          <polyline points="13 2 13 9 20 9" />
+        </svg>
+      }
     >
-      {value.map((entry, i) => (
-        <RepeatableCard key={i} label={`Variant ${i + 1}`} onRemove={() => remove(i)}>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <TextInput
-              label="Label"
-              placeholder="Backend-focused"
-              value={entry.label}
-              onChange={(v) => update(i, { ...entry, label: v })}
-            />
-            <TextInput
-              label="File reference"
-              placeholder="resume-backend.pdf"
-              value={entry.fileRef}
-              onChange={(v) => update(i, { ...entry, fileRef: v })}
-            />
-          </div>
-        </RepeatableCard>
-      ))}
-      <Button onClick={add}>Add resume variant</Button>
+      <div className="space-y-3">
+        {value.map((entry, i) => (
+          <RepeatableCard
+            key={i}
+            label={entry.label ? `Variant: ${entry.label}` : `Resume Variant #${i + 1}`}
+            onRemove={() => remove(i)}
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextInput
+                label="Variant label"
+                placeholder="e.g. Backend-focused"
+                value={entry.label}
+                onChange={(v) => update(i, { ...entry, label: v })}
+              />
+              <TextInput
+                label="File reference or note"
+                placeholder="e.g. resume-backend.pdf"
+                value={entry.fileRef}
+                onChange={(v) => update(i, { ...entry, fileRef: v })}
+              />
+            </div>
+          </RepeatableCard>
+        ))}
+      </div>
+      <div>
+        <Button variant="secondary" onClick={add}>
+          + Add resume variant
+        </Button>
+      </div>
     </Section>
   );
 }

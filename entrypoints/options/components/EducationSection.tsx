@@ -18,30 +18,62 @@ export function EducationSection({
   const add = () => onChange([...value, { ...emptyEntry }]);
 
   return (
-    <Section title="Education">
-      {value.map((entry, i) => (
-        <RepeatableCard key={i} label={`Entry ${i + 1}`} onRemove={() => remove(i)}>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <TextInput
-              label="Institution"
-              value={entry.institution}
-              onChange={(v) => update(i, { ...entry, institution: v })}
-            />
-            <TextInput
-              label="Program"
-              value={entry.program}
-              onChange={(v) => update(i, { ...entry, program: v })}
-            />
-            <TextInput
-              label="Dates"
-              placeholder="2019 – 2023"
-              value={entry.dates}
-              onChange={(v) => update(i, { ...entry, dates: v })}
-            />
-          </div>
-        </RepeatableCard>
-      ))}
-      <Button onClick={add}>Add education</Button>
+    <Section
+      title="Education & Degrees"
+      badge={`${value.length} added`}
+      description="University, degrees, diplomas, and relevant coursework."
+      icon={
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+        >
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+          <path d="M6 12v5c3 3 9 3 12 0v-5" />
+        </svg>
+      }
+    >
+      <div className="space-y-3">
+        {value.map((entry, i) => (
+          <RepeatableCard
+            key={i}
+            label={
+              entry.institution
+                ? `${entry.institution}${entry.program ? ` — ${entry.program}` : ''}`
+                : `Education #${i + 1}`
+            }
+            onRemove={() => remove(i)}
+          >
+            <div className="grid gap-3 sm:grid-cols-3">
+              <TextInput
+                label="Institution / University"
+                placeholder="e.g. Stanford University"
+                value={entry.institution}
+                onChange={(v) => update(i, { ...entry, institution: v })}
+              />
+              <TextInput
+                label="Degree / Program"
+                placeholder="e.g. B.S. Computer Science"
+                value={entry.program}
+                onChange={(v) => update(i, { ...entry, program: v })}
+              />
+              <TextInput
+                label="Dates attended"
+                placeholder="2019 – 2023"
+                value={entry.dates}
+                onChange={(v) => update(i, { ...entry, dates: v })}
+              />
+            </div>
+          </RepeatableCard>
+        ))}
+      </div>
+      <div>
+        <Button variant="secondary" onClick={add}>
+          + Add education
+        </Button>
+      </div>
     </Section>
   );
 }

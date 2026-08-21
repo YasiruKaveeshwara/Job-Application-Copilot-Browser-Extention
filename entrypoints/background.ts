@@ -1,23 +1,47 @@
-import { browser, defineBackground } from '#imports';
+import { defineBackground } from '#imports';
 import { onMessage } from '../lib/messaging';
 import { generateAnswers, describeGenerationFailure } from '../lib/orchestrator';
 import { saveFieldMapping } from '../lib/mapping-cache';
 import { getExtractor } from '../lib/extractor';
 
 /**
- * Make the toolbar button open the review panel.
+ * Make the toolbar button open the side panel on a single click.
  *
- * Chrome does not open a side panel on its own, and this API exists only there.
- * Failing to bind it is cosmetic — the panel is still reachable from the
- * extension menu — so it must never take message handling down with it, whether
- * the API is missing (throws) or the call is rejected.
+ * The webextension-polyfill (`browser` from `#imports`) does not include the
+ * `sidePanel` API, so `browser.sidePanel?.setPanelBehavior(...)` silently
+ * no-ops. We use the native `chrome.sidePanel` API directly.
+ *
+ * Two complementary approaches, belt-and-suspenders:
+ *   1. `setPanelBehavior({ openPanelOnActionClick: true })` — tells Chrome to
+ *      open the panel automatically on every action click. This is declarative
+ *      and survives service-worker restarts.
+ *   2. `action.onClicked` + `sidePanel.open()` — explicit open as a fallback
+ *      in case the declarative call is not supported or fails. When
+ *      `openPanelOnActionClick` is active Chrome may not fire `onClicked`, so
+ *      the listener is a no-op in that case rather than a conflict.
+ *
+ * Both are best-effort: the panel is still reachable via the extension menu,
+ * so neither failure should take down message handling.
  */
 function bindSidePanelToToolbarIcon(): void {
   const report = (error: unknown) => {
     console.warn('[job-copilot] could not bind the side panel to the toolbar icon', error);
   };
+
+  // 1. Declarative: tell Chrome "clicking the action icon = open the panel".
   try {
-    void browser.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(report);
+    chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true })?.catch?.(report);
+  } catch (error) {
+    report(error);
+  }
+
+  // 2. Explicit: if the declarative flag did not take, open manually.
+  try {
+    chrome.action?.onClicked?.addListener((tab) => {
+      if (tab.id !== undefined) {
+        chrome.sidePanel?.open?.({ tabId: tab.id })?.catch?.(report);
+      }
+    });
   } catch (error) {
     report(error);
   }

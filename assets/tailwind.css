@@ -6,9 +6,35 @@
  * rather than discovered: only the UI is scanned, and only what the UI uses is
  * built. Every class in this project lives under entrypoints/ (lib/ is logic and
  * carries no markup), so that is the whole list.
- *
- * If a component is ever added outside entrypoints/, add it here or its classes
- * will silently have no CSS.
  */
 @import 'tailwindcss' source(none);
 @source '../entrypoints';
+
+@layer base {
+  :root {
+    --font-sans:
+      'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  body {
+    font-family: var(--font-sans);
+    letter-spacing: -0.012em;
+  }
+}
+
+/* Custom sleek scrollbar styling for compact extension sidepanel */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}

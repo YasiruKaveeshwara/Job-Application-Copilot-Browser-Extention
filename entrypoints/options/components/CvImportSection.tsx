@@ -19,20 +19,6 @@ import {
 import type { ReviewItem } from '@/lib/extractor/merge';
 import { Button, Section, TextArea, TextInput } from './primitives';
 
-// The CV import screen: pick a PDF, see everything the model read off it grouped
-// by category, edit or drop any of it, and only then save.
-//
-// The rule this UI exists to keep is that nothing is written until the user
-// presses Confirm. It holds because the review list lives in local state and the
-// only way out of it is `applyReview` (lib/extractor/merge.ts) followed by the
-// page's own save — there is no other write path, and the notice below says so
-// where the user can see it the whole time.
-//
-// Imports point at lib/extractor/{types,merge,upload} rather than at
-// lib/extractor: the index also exports the Gemini extractor, and pulling that
-// into the options bundle would put the API endpoint in options.js. The packaging
-// spec asserts it appears in background.js alone.
-
 type Stage = 'idle' | 'busy' | 'review';
 
 export function CvImportSection({
@@ -47,6 +33,7 @@ export function CvImportSection({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const accepted = items.filter((item) => item.accepted);
@@ -72,22 +59,16 @@ export function CvImportSection({
     try {
       const pdfBase64 = await readPdfAsBase64(file);
       const extracted = await sendMessage('EXTRACT_CV', { pdfBase64 });
-      // Built against the profile as it stands right now, including edits made on
-      // this page but not yet saved — so "already have this" means what the user
-      // sees above, not what storage happened to hold when the page loaded.
       const built = buildReviewItems(value, extracted);
       setItems(built);
       setStage(built.length > 0 ? 'review' : 'idle');
       if (built.length === 0) {
-        setNotice('Nothing new — everything that CV states is already in your profile.');
+        setNotice('Nothing new — everything in that CV is already in your profile.');
       }
     } catch (caught) {
-      // The background words its own failures (lib/orchestrator.ts); anything
-      // else is a read that never got as far as a request.
       setError(caught instanceof Error ? caught.message : 'Could not read that CV.');
       setStage('idle');
     } finally {
-      // So picking the same file again fires a change event.
       if (inputRef.current !== null) inputRef.current.value = '';
     }
   };
@@ -110,58 +91,136 @@ export function CvImportSection({
   return (
     <Section
       title="Import from a CV"
+      badge="PDF Parsing"
       description={`Upload a PDF CV and the model reads what it can off it. Nothing is written to your profile until you confirm it below. PDFs up to ${MAX_PDF_LABEL}; the document is sent to the Gemini API and not stored anywhere else.`}
+      icon={
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+        >
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+          <polyline points="10 9 9 9 8 9" />
+        </svg>
+      }
     >
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Upload Dropzone */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          void handleFile(e.dataTransfer.files?.[0]);
+        }}
+        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+          dragOver
+            ? 'border-indigo-500 bg-indigo-50/50'
+            : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50'
+        }`}
+      >
         <input
           ref={inputRef}
           type="file"
           accept=".pdf,application/pdf"
           disabled={stage === 'busy'}
           onChange={(e) => void handleFile(e.target.files?.[0])}
-          className="block text-sm text-gray-700 file:mr-3 file:rounded-md file:border file:border-gray-300 file:bg-white file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-50"
+          className="absolute inset-0 cursor-pointer opacity-0"
         />
-        {stage === 'busy' && <span className="text-sm text-gray-500">Reading the CV…</span>}
+
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 mb-2">
+          {stage === 'busy' ? (
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          ) : (
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          )}
+        </div>
+
+        <p className="text-xs font-bold text-slate-800">
+          {stage === 'busy'
+            ? 'Extracting resume details with AI…'
+            : 'Drop your Resume PDF here or browse'}
+        </p>
+        <p className="mt-1 text-[11px] text-slate-500">
+          PDF format only • Max {MAX_PDF_LABEL} • Sent directly to Gemini API
+        </p>
       </div>
 
       {error !== null && (
-        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
           {error}
-        </p>
+        </div>
       )}
       {notice !== null && (
-        <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-700">
           {notice}
-        </p>
+        </div>
       )}
 
+      {/* Review Stage */}
       {stage === 'review' && (
-        <div className="space-y-4">
-          {/* Stays on screen for the whole review, not a toast: it is the promise
-              the feature makes, and the user is about to tick boxes on the
-              strength of it. */}
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Nothing is saved until you press <span className="font-medium">Confirm</span>.
-            Everything below is a proposal — edit it, untick it, or discard it.
-          </p>
+        <div className="space-y-4 pt-2">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 leading-relaxed">
+            <span className="font-bold">Review extracted items:</span> Nothing is saved until you
+            click <span className="font-semibold text-amber-950">Confirm & Save</span> below. You
+            can edit, untick, or discard any item.
+          </div>
 
           {CATEGORY_ORDER.map((category) => {
             const inCategory = items.filter((item) => item.category === category);
             if (inCategory.length === 0) return null;
             return (
               <div key={category} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-bold text-slate-900 tracking-tight">
                     {CATEGORY_LABELS[category]}{' '}
-                    <span className="font-normal text-gray-500">({inCategory.length})</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.2 text-[10px] text-slate-600 font-normal">
+                      {inCategory.length}
+                    </span>
                   </h3>
-                  <div className="flex gap-2">
-                    <Button onClick={() => setItems(setCategoryAccepted(items, category, true))}>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setItems(setCategoryAccepted(items, category, true))}
+                      className="rounded-lg px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:bg-indigo-50"
+                    >
                       Select all
-                    </Button>
-                    <Button onClick={() => setItems(setCategoryAccepted(items, category, false))}>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setItems(setCategoryAccepted(items, category, false))}
+                      className="rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+                    >
                       Select none
-                    </Button>
+                    </button>
                   </div>
                 </div>
                 {inCategory.map((item) => (
@@ -179,15 +238,15 @@ export function CvImportSection({
           })}
 
           {blocked.length > 0 && (
-            <p className="text-sm text-amber-700">
+            <p className="text-xs font-medium text-amber-700">
               {blocked.length === 1
-                ? 'One ticked item still needs'
-                : `${blocked.length} ticked items still need`}{' '}
-              something filled in or answered: {blocked.map((item) => item.title).join(', ')}.
+                ? 'One selected item requires'
+                : `${blocked.length} selected items require`}{' '}
+              required fields to be filled: {blocked.map((item) => item.title).join(', ')}.
             </p>
           )}
 
-          <div className="flex items-center gap-3 border-t border-gray-200 pt-4">
+          <div className="flex items-center gap-3 border-t border-slate-200 pt-4">
             <Button
               variant="primary"
               onClick={handleConfirm}
@@ -197,11 +256,11 @@ export function CvImportSection({
                 ? 'Saving…'
                 : `Confirm and save ${accepted.length} ${accepted.length === 1 ? 'item' : 'items'}`}
             </Button>
-            <Button onClick={clearReview} disabled={applying}>
-              Discard this import
+            <Button variant="secondary" onClick={clearReview} disabled={applying}>
+              Discard import
             </Button>
-            <span className="text-sm text-gray-500">
-              {accepted.length} of {items.length} ticked
+            <span className="text-xs font-medium text-slate-500">
+              {accepted.length} of {items.length} selected
             </span>
           </div>
         </div>
@@ -210,7 +269,6 @@ export function CvImportSection({
   );
 }
 
-/** One extracted thing, with everything the user can do to it before it is saved. */
 function ReviewCard({
   item,
   onToggle,
@@ -227,41 +285,49 @@ function ReviewCard({
   const incomplete = item.accepted && !canAccept(item);
   return (
     <div
-      className={
+      className={`rounded-2xl border p-4 transition-all ${
         incomplete
-          ? 'rounded-md border border-amber-300 bg-amber-50 p-4'
-          : 'rounded-md border border-gray-200 bg-gray-50 p-4'
-      }
+          ? 'border-amber-300 bg-amber-50/50 shadow-2xs'
+          : item.accepted
+            ? 'border-indigo-200 bg-indigo-50/20 shadow-2xs'
+            : 'border-slate-200 bg-slate-50/60 opacity-70'
+      }`}
     >
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <label className="flex items-start gap-2">
+      <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-100 pb-2.5">
+        <label className="flex items-start gap-2.5 cursor-pointer">
           <input
             type="checkbox"
             checked={item.accepted}
             onChange={(e) => onToggle(e.target.checked)}
-            className="mt-1 h-4 w-4 rounded border-gray-300"
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
           />
-          <span>
-            <span className="text-sm font-medium text-gray-800">{item.title}</span>{' '}
-            {item.status === 'new' ? (
-              <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
-                New
-              </span>
-            ) : (
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800">
-                Proposed change
-              </span>
-            )}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-900 tracking-tight">{item.title}</span>
+              {item.status === 'new' ? (
+                <span className="rounded-full bg-emerald-50 px-2 py-0.2 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+                  New
+                </span>
+              ) : (
+                <span className="rounded-full bg-amber-50 px-2 py-0.2 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                  Update
+                </span>
+              )}
+            </div>
             {item.existing !== undefined && (
-              <span className="mt-1 block text-xs text-gray-500">
-                Already saved: {item.existing}
+              <span className="mt-0.5 block text-[11px] text-slate-500">
+                Current: {item.existing}
               </span>
             )}
-          </span>
+          </div>
         </label>
-        <Button variant="danger" onClick={onDiscard}>
+        <button
+          type="button"
+          onClick={onDiscard}
+          className="rounded-lg px-2 py-1 text-[11px] font-semibold text-red-600 hover:bg-red-50 transition-all"
+        >
           Discard
-        </Button>
+        </button>
       </div>
 
       <div className="space-y-3">
@@ -285,25 +351,28 @@ function ReviewCard({
 
         {item.category === 'projects' && (
           <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-700">
               {item.choice.label}
             </span>
             <div className="flex items-center gap-4">
               {item.choice.options.map((option) => (
-                <label key={option.value} className="flex items-center gap-2 text-sm text-gray-700">
+                <label
+                  key={option.value}
+                  className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer"
+                >
                   <input
                     type="radio"
                     name={`choice-${item.id}`}
                     value={option.value}
                     checked={item.choice.value === option.value}
                     onChange={() => onChoose(option.value)}
-                    className="h-4 w-4 border-gray-300"
+                    className="h-4 w-4 border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
                   {option.label}
                 </label>
               ))}
             </div>
-            <p className="mt-1 text-xs text-gray-500">{item.choice.hint}</p>
+            <p className="mt-1 text-[11px] text-slate-400">{item.choice.hint}</p>
           </div>
         )}
       </div>

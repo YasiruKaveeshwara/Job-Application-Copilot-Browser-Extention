@@ -36,6 +36,8 @@ interface Manifest {
   side_panel?: { default_path?: string };
   content_scripts?: { matches?: string[]; all_frames?: boolean; js?: string[] }[];
   web_accessible_resources?: unknown[];
+  action?: { default_title?: string; default_icon?: Record<string, string> | string };
+  icons?: Record<string, string>;
 }
 
 /** Every file in the unpacked build, as build-root-relative posix paths. */
@@ -122,7 +124,7 @@ test.describe('the unpacked production build', () => {
         'sidepanel.html',
       ]),
     );
-    const unexpected = files.filter((path) => !/\.(js|css|html|json)$/.test(path));
+    const unexpected = files.filter((path) => !/\.(js|css|html|json|png|svg)$/.test(path));
     expect(unexpected, `unexpected files in the build: ${unexpected.join(', ')}`).toEqual([]);
     // Source maps would ship the original source, including comments, inside the
     // extension a user installs.
@@ -132,11 +134,18 @@ test.describe('the unpacked production build', () => {
   test('points every path it declares at a file that exists', () => {
     const built = new Set(buildFiles());
     const parsed = manifest();
+    const iconPaths = [
+      ...Object.values(parsed.icons ?? {}),
+      ...(typeof parsed.action?.default_icon === 'object'
+        ? Object.values(parsed.action.default_icon as Record<string, string>)
+        : []),
+    ];
     const declared = [
       parsed.background?.service_worker,
       parsed.options_ui?.page,
       parsed.side_panel?.default_path,
       ...(parsed.content_scripts ?? []).flatMap((script) => script.js ?? []),
+      ...iconPaths,
     ].filter((path): path is string => path !== undefined);
 
     // Every entrypoint the manifest names, plus everything the HTML documents

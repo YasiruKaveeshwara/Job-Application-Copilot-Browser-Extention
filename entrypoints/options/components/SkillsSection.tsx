@@ -1,10 +1,6 @@
 import type { ProfileData } from '@/lib/types';
 import { Section, StringListEditor } from './primitives';
 
-// Skills as plain names. They exist as their own section because a CV lists them
-// that way and the import has to have somewhere to put them; drafts read them
-// through the same retrieval as everything else in the profile.
-
 export function SkillsSection({
   value,
   onChange,
@@ -14,13 +10,25 @@ export function SkillsSection({
 }) {
   return (
     <Section
-      title="Skills"
-      description="Tools, languages, and practices you would claim in an application."
+      title="Skills & Core Proficiencies"
+      badge={`${value.length} skills`}
+      description="Languages, frameworks, developer tools, and domain expertise."
+      icon={
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+        >
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      }
     >
       <StringListEditor
-        label="Skills"
+        label="List of skills & tools"
         values={value}
-        placeholder="TypeScript"
+        placeholder="e.g. React, TypeScript, GraphQL, Docker, Kubernetes"
         addLabel="Add skill"
         onChange={onChange}
       />
