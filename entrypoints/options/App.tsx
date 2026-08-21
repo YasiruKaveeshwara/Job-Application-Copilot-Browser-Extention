@@ -11,10 +11,12 @@ import {
 import { Button } from './components/primitives';
 import { ApiSettingsSection } from './components/ApiSettingsSection';
 import { CachedDraftsSection } from './components/CachedDraftsSection';
+import { CvImportSection } from './components/CvImportSection';
 import { PersonalSection } from './components/PersonalSection';
 import { EducationSection } from './components/EducationSection';
 import { WorkHistorySection } from './components/WorkHistorySection';
 import { ProjectsSection } from './components/ProjectsSection';
+import { SkillsSection } from './components/SkillsSection';
 import { StandardAnswersSection } from './components/StandardAnswersSection';
 import { ResumeVariantsSection } from './components/ResumeVariantsSection';
 import { StylePreferencesSection } from './components/StylePreferencesSection';
@@ -67,6 +69,22 @@ export default function App() {
     }
   };
 
+  // A confirmed CV import is written straight away rather than left for the Save
+  // button: the user has just approved a specific set of values, and leaving them
+  // in unsaved form state would put them one closed tab away from being lost.
+  const handleImport = async (next: ProfileData) => {
+    setProfile(next);
+    setStatus('saving');
+    try {
+      await saveProfile(next);
+      setStatus('saved');
+    } catch (error) {
+      setStatus('error');
+      // Rethrown so the import section can say so where the user is looking.
+      throw error;
+    }
+  };
+
   if (!loaded) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">
@@ -97,10 +115,12 @@ export default function App() {
 
       <main className="mx-auto max-w-4xl space-y-6 px-6 py-8">
         <ApiSettingsSection value={settings} onChange={patchSettings} />
+        <CvImportSection value={profile} onApply={handleImport} />
         <PersonalSection value={profile.personal} onChange={(v) => patch('personal', v)} />
         <EducationSection value={profile.education} onChange={(v) => patch('education', v)} />
         <WorkHistorySection value={profile.workHistory} onChange={(v) => patch('workHistory', v)} />
         <ProjectsSection value={profile.projects} onChange={(v) => patch('projects', v)} />
+        <SkillsSection value={profile.skills} onChange={(v) => patch('skills', v)} />
         <StandardAnswersSection
           value={profile.standardAnswers}
           onChange={(v) => patch('standardAnswers', v)}

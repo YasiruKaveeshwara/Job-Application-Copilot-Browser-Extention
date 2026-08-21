@@ -18,9 +18,43 @@ export interface ProfileData {
     techStack: string[];
     narrativeFragments: string[];
   }[];
+  /**
+   * Technologies and capabilities, as short tokens ("TypeScript", "Kubernetes").
+   *
+   * Added after the original seven sections, for CV import: a CV lists skills
+   * plainly and they are worth keeping, but there was nowhere to put them.
+   * Stored profiles written before this existed have no `skills` key, which is
+   * what the v2 storage migration is for (see lib/storage.ts).
+   */
+  skills: string[];
   standardAnswers: { questionPattern: string; answerText: string }[];
   resumeVariants: { label: string; fileRef: string }[];
   stylePreferences: { tone: string; avoid: string[]; length: 'concise' | 'standard' | 'detailed' };
+}
+
+/**
+ * What a model could honestly read off an uploaded CV.
+ *
+ * Every field is optional: a CV that does not state something must produce an
+ * absent key, never a guess. This is deliberately a subset of `ProfileData` —
+ * the sections left out are the ones a document cannot tell you:
+ *
+ * - `individualOrGroup` — whether a project was solo or a team effort is framing
+ *   the user decides; the review screen asks them, per project.
+ * - `narrativeFragments`, `standardAnswers`, `stylePreferences` — how the user
+ *   wants their history told. Manual entry only.
+ * - `resumeVariants` — a file reference to a document the extension does not keep.
+ *
+ * `projectsRaw` is named apart from `ProfileData['projects']` because it is that
+ * shape minus those two decisions, so the types cannot be confused for each
+ * other or assigned across.
+ */
+export interface ExtractedProfileData {
+  personal?: Partial<ProfileData['personal']>;
+  education?: ProfileData['education'];
+  workHistory?: ProfileData['workHistory'];
+  projectsRaw?: { name: string; description: string; techStack: string[] }[];
+  skills?: string[];
 }
 
 export interface DetectedField {

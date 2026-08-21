@@ -149,6 +149,8 @@ draft.
 
 ## Left for the user (needs a Gemini API key)
 
+### Draft quality
+
 Draft quality is the one checklist item no automation settles: whether a
 paragraph is a usable first draft is a judgement about your own history, and
 `VITE_USE_MOCK_GENERATOR` produces deterministic stub text on purpose. A plain
@@ -171,3 +173,41 @@ paragraph is a usable first draft is a judgement about your own history, and
 Worth watching while you do: whether F1's junk cards (cookie widgets, search
 boxes) get drafts generated for them, and how much of the answer budget they
 consume.
+
+### CV import, against two real CVs
+
+Same reason: a real CV is the only thing that shows whether the model reads a
+_layout_ — two columns, a sidebar of skills, dates in a gutter — rather than
+whether the request is well formed, which `test/unit/gemini-extractor.test.ts`
+already settles. The suite deliberately ships no CV: a real one is someone's
+personal data and does not belong in a repository.
+
+Two runs, because the second is the one that can go wrong quietly:
+
+1. Load `.output/chrome-mv3/` unpacked, open **Options**, paste your key.
+2. **First CV, empty profile.** Upload it under **Import from a CV**. Check
+   that every item is grouped under the right category, that nothing was
+   invented (each value traceable to a line in the document), and that every
+   item is marked **New** and ticked. Untick one, edit another, discard a third,
+   then **Confirm** — and check that exactly the ticked items landed in the form
+   above, with your edit and without the discarded one.
+3. **Second CV, over a section you filled in by hand.** Type something into
+   Personal and into one work-history entry, save, then upload the second CV.
+   Everything that would touch what you typed must appear as **Proposed change**
+   and be **unticked**, showing your value beside the CV's. Confirm with those
+   left unticked and check your text is still there afterwards.
+4. Re-upload the same CV once more: the review should come back empty
+   ("Nothing new"), not a duplicated profile.
+5. Check the five exclusions are untouched — no project got an
+   individual/group answer you did not pick, and `narrativeFragments`,
+   `standardAnswers`, `stylePreferences`, and `resumeVariants` are as you left
+   them.
+
+| CV                     | Categories correct | Nothing invented | Overwrite shown as a proposal | Re-import empty | Exclusions untouched | Notes |
+| ---------------------- | ------------------ | ---------------- | ----------------------------- | --------------- | -------------------- | ----- |
+| 1 (into empty profile) |                    |                  | n/a                           |                 |                      |       |
+| 2 (over manual entry)  |                    |                  |                               |                 |                      |       |
+
+The mock extractor covers the mechanics of the review screen without a key —
+`VITE_USE_MOCK_GENERATOR=true npm run dev`, then upload any PDF — which is worth
+doing first to learn the screen before spending a request on it.

@@ -9,6 +9,7 @@ edit, and insert every answer yourself.
 
 - **Universal field detection** — finds form inputs, textareas, ARIA-labelled elements, and inputs inside shadow DOM. Resolves labels via `label[for]`, `aria-label`/`aria-labelledby`, and proximity fallback.
 - **Profile-driven drafts** — retrieves the most relevant fragments from your work history, projects, and standard answers for each field before calling the model.
+- **CV import with explicit confirmation** — upload a PDF CV and the model reads what it can off it; every extracted value is shown grouped by category, editable, and unticked wherever it would change something you typed. Nothing is saved until you confirm. See [Importing a CV](#importing-a-cv).
 - **Bring-your-own-key** — your Gemini API key lives in local extension storage only. It is never synced to your browser account.
 - **Answer cache** — identical (field, role type, site) combinations reuse the previous draft until your profile changes or 7 days pass.
 - **Learned corrections** — manually correct a misclassified field label once and the correction is remembered per site.
@@ -65,10 +66,56 @@ npm run build
 
 1. Click the puzzle-piece menu and open **Job Application Copilot → Options**.
 2. Paste your Gemini API key and choose a model.
-3. Fill in your profile (personal info, work history, projects, etc.).
+3. Fill in your profile (personal info, work history, projects, etc.) — or start it
+   from a CV, see [Importing a CV](#importing-a-cv).
 4. Click **Save**.
 
 > **Security warning:** your API key is stored only in local extension storage on this device. Never commit it to a repository, never paste it into a `.env` file that gets checked in, and never share it.
+
+## Importing a CV
+
+The options page can fill in the profile from a PDF CV instead of by typing.
+Upload one under **Import from a CV**; the file is sent to the Gemini API with the
+same key as everything else, and the model returns whatever structured data it can
+read off the document.
+
+**Nothing is written to your profile until you confirm it.** What comes back is
+shown as a review list grouped by category — Personal, Education, Work history,
+Projects, Skills — where every value is editable in place and every item has a
+checkbox:
+
+- A target that is **empty** yields a **New** item, ticked by default.
+- A target that **already has something in it** yields a **Proposed change**,
+  unticked, showing what is already saved next to what the CV says. Nothing is
+  ever replaced or quietly appended to a section you filled in by hand.
+- Anything the profile already holds — the same value, school, employer, project,
+  or skill — is left out, so re-importing the same CV produces an empty review
+  rather than a duplicated profile.
+
+Pressing **Confirm** applies only the ticked items and saves. Discarding the
+import, or closing the page, writes nothing.
+
+### What a CV import never touches
+
+Five parts of a profile are framing decisions a document cannot state, so they
+are never populated from one:
+
+| Field                              | Why not                                                       |
+| ---------------------------------- | ------------------------------------------------------------- |
+| `individualOrGroup` (per project)  | A CV rarely says; you are asked per project during the review |
+| `narrativeFragments` (per project) | How you tell the story is yours to write                      |
+| `standardAnswers`                  | Your answers to recurring questions, not a document's         |
+| `stylePreferences`                 | Tone and length are your call                                 |
+| `resumeVariants`                   | Which CV to attach where is a decision, not extracted data    |
+
+This is enforced, not just documented: the extraction request never shows the model
+a slot for those fields, and a response that contains one is **rejected** rather
+than cleaned up ([lib/extractor/schema.ts](lib/extractor/schema.ts)), so a drifting
+prompt or a changed model cannot look like a correct one.
+
+Other non-goals: no auto-save at any point, no local PDF parsing (the model reads
+the document; the extension ships no PDF library), and no storage of the file —
+it is read once, in the background service worker, and not kept.
 
 ## Development commands
 
@@ -78,7 +125,7 @@ npm run build        # production build → .output/chrome-mv3/
 npm run zip          # build, then package it → .output/*.zip
 npm run typecheck    # wxt prepare && tsc --noEmit
 npm run lint         # eslint (0 warnings = passing)
-npm run test         # vitest unit tests (225 tests)
+npm run test         # vitest unit tests (313 tests)
 npm run test:e2e     # playwright e2e tests (requires built extension)
 npm run format       # prettier --write
 ```
@@ -96,11 +143,14 @@ so the full scan → draft → review round trip works with no key and no spend:
 VITE_USE_MOCK_GENERATOR=true npm run dev
 ```
 
+The same flag swaps the CV extractor for a canned one, so the import review screen
+can be exercised with any PDF (its contents are ignored) and no API call.
+
 The flag is read at build time, not runtime: a plain `npm run build` compiles the
-comparison to `false` and the stub is dropped from the bundle entirely, so a
-release build has no path back to it. `test/e2e/packaging.spec.ts` asserts that —
-and asserts the real Gemini generator is present, since "no mock" would also be
-true of a build with no generator at all.
+comparison to `false` and both stubs are dropped from the bundle entirely, so a
+release build has no path back to them. `test/e2e/packaging.spec.ts` asserts that —
+and asserts the real Gemini endpoint is present in `background.js` and nowhere
+else, since "no mock" would also be true of a build with no generator at all.
 
 Then serve the test fixtures:
 
@@ -216,7 +266,8 @@ git checkout -- wxt.config.ts entrypoints/content.ts && npm run build
 
 - **No auto-submit.** The extension never submits a form on your behalf.
 - **No bulk / mass application.** One page, one review, one insert at a time.
-- **No resume upload.** Resume variant entries store a file reference only; parsing or uploading a file is out of scope for the MVP.
+- **No stored resume file.** A CV you import is sent to the Gemini API to be read once and is not kept by the extension; resume variant entries store a file reference only, and no file is ever attached to a form for you.
+- **No auto-filled profile.** Imported data is a proposal until you tick and confirm it — see [Importing a CV](#importing-a-cv).
 
 ## Real-world validation log (Phase 17)
 
@@ -271,10 +322,18 @@ lib/
   job-context.ts         # Page text extraction + role-family synonym map
   messaging.ts           # Typed message contracts (@webext-core/messaging)
   retrieval.ts           # BM25-style fragment retrieval from profile
+  gemini-client.ts       # Shared Gemini transport (URL, key header, error mapping)
   generator/
     types.ts             # Generator interface + GeneratorError
     gemini-generator.ts  # Gemini API implementation
     mock-generator.ts    # Deterministic stub for tests and dev
+  extractor/
+    types.ts             # ProfileExtractor interface + PDF size limit
+    schema.ts            # Strict zod schema; rejects fields a CV may not fill
+    gemini-extractor.ts  # Inline-PDF extraction request
+    mock-extractor.ts    # Canned CV for tests and dev
+    merge.ts             # Review model: build items, edit them, apply the ticked ones
+    upload.ts            # File → base64, and what counts as a usable PDF
   prompt-builder.ts      # Batched prompt assembly
   schema-validator.ts    # GeneratedAnswer[] shape validation
   orchestrator.ts        # Retrieve → prompt → generate → validate pipeline
@@ -282,7 +341,7 @@ lib/
   mapping-cache.ts       # Per-site learned label corrections
   insert-handler.ts      # Native-setter insertion (React-compatible)
 test/
-  unit/                  # Vitest specs (225 tests)
+  unit/                  # Vitest specs (313 tests)
   e2e/                   # Playwright specs (real browser, built extension)
 test-fixtures/           # Static HTML pages served for E2E tests
 docs/

@@ -1,5 +1,5 @@
 import { defineExtensionMessaging } from '@webext-core/messaging';
-import type { DetectedField, JobContext, GeneratedAnswer } from './types';
+import type { DetectedField, JobContext, GeneratedAnswer, ExtractedProfileData } from './types';
 
 // The single place message contracts are defined. Every cross-boundary call
 // (content script ↔ background ↔ UI) goes through the helpers exported here;
@@ -35,6 +35,19 @@ export interface SaveFieldMappingRequest {
 }
 
 /**
+ * One uploaded CV, base64-encoded, on its way to the model.
+ *
+ * The options page cannot make this call itself: the API key and the provider
+ * endpoint live in the background worker and stay there (see
+ * test/e2e/packaging.spec.ts, which asserts the endpoint appears in exactly one
+ * bundle). So the PDF crosses the message boundary and the extracted data comes
+ * back — which is also why lib/extractor caps the file size.
+ */
+export interface ExtractCvRequest {
+  pdfBase64: string;
+}
+
+/**
  * Request/response shape of every message in the extension.
  *
  * Handlers may return a promise; a handler that throws surfaces as a rejected
@@ -50,6 +63,13 @@ export interface ProtocolMap {
   INSERT_FIELD(data: InsertFieldRequest): InsertFieldResult;
   /** Side panel → background. Persist a manual label/type correction. */
   SAVE_FIELD_MAPPING(data: SaveFieldMappingRequest): void;
+  /**
+   * Options page → background. Read structured data off an uploaded CV.
+   *
+   * Returns what the model could honestly extract. Nothing is saved by this
+   * call — the options page shows it for review first (lib/extractor/merge.ts).
+   */
+  EXTRACT_CV(data: ExtractCvRequest): ExtractedProfileData;
 }
 
 export const { sendMessage, onMessage } = defineExtensionMessaging<ProtocolMap>();

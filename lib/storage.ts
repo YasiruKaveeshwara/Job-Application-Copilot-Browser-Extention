@@ -5,7 +5,8 @@ import type { ProfileData, Settings } from './types';
 // data on-device (never synced to the browser account), per the build guide,
 // Phase 3.
 const PROFILE_KEY = 'local:profile' as const;
-const PROFILE_VERSION = 1;
+/** v2 added `skills`, for CV import. See `migrations` below. */
+const PROFILE_VERSION = 2;
 
 /**
  * A sensible empty profile so the UI and downstream logic never crash on first
@@ -17,6 +18,7 @@ export function emptyProfile(): ProfileData {
     education: [],
     workHistory: [],
     projects: [],
+    skills: [],
     standardAnswers: [],
     resumeVariants: [],
     stylePreferences: { tone: '', avoid: [], length: 'standard' },
@@ -26,11 +28,41 @@ export function emptyProfile(): ProfileData {
 const profileItem = storage.defineItem<ProfileData>(PROFILE_KEY, {
   version: PROFILE_VERSION,
   fallback: emptyProfile(),
+  migrations: {
+    // v1 → v2: `skills` did not exist. Nothing to derive it from, so it starts
+    // empty; CV import or the manual form fills it.
+    2: (old: ProfileData): ProfileData => ({ ...emptyProfile(), ...old, skills: [] }),
+  },
 });
 
-/** Read the stored profile, or the empty default if nothing is saved yet. */
+/**
+ * Read the stored profile, or the empty default if nothing is saved yet.
+ *
+ * Every section is guaranteed present and of the right container type, whatever
+ * is actually on disk. That matters beyond tidiness: a v1 record has no `skills`
+ * key at all, and the UI maps over these arrays — one `undefined` is a blank
+ * options page. The migration above rewrites old records properly, but it runs on
+ * extension update, so this does not depend on it having run.
+ */
 export async function getProfile(): Promise<ProfileData> {
-  return profileItem.getValue();
+  const stored = await profileItem.getValue();
+  const empty = emptyProfile();
+  return {
+    ...empty,
+    ...stored,
+    personal: { ...empty.personal, ...stored.personal },
+    education: asArray(stored.education),
+    workHistory: asArray(stored.workHistory),
+    projects: asArray(stored.projects),
+    skills: asArray(stored.skills),
+    standardAnswers: asArray(stored.standardAnswers),
+    resumeVariants: asArray(stored.resumeVariants),
+    stylePreferences: { ...empty.stylePreferences, ...stored.stylePreferences },
+  };
+}
+
+function asArray<T>(value: T[] | undefined): T[] {
+  return Array.isArray(value) ? value : [];
 }
 
 /** Overwrite the entire stored profile. */

@@ -39,6 +39,7 @@ function sampleProfile(): ProfileData {
         narrativeFragments: ['Designed a looping computation'],
       },
     ],
+    skills: ['Mathematics', 'Analytical Engine'],
     standardAnswers: [{ questionPattern: 'why us', answerText: 'Pioneering work' }],
     resumeVariants: [{ label: 'default', fileRef: 'resume.pdf' }],
     stylePreferences: { tone: 'formal', avoid: ['buzzwords'], length: 'concise' },
@@ -86,8 +87,24 @@ describe('storage', () => {
     // ...and every other section is untouched.
     expect(readBack.personal).toEqual(data.personal);
     expect(readBack.workHistory).toEqual(data.workHistory);
+    expect(readBack.skills).toEqual(data.skills);
     expect(readBack.standardAnswers).toEqual(data.standardAnswers);
     expect(readBack.stylePreferences).toEqual(data.stylePreferences);
+  });
+
+  it('reads a profile stored before skills existed as an empty list, never undefined', async () => {
+    // A v1 record: written by a build that had no `skills` section at all. The
+    // v1 → v2 migration rewrites these on extension update, but a read must not
+    // depend on that having happened — the options page maps over every section.
+    const v1: Record<string, unknown> = { ...sampleProfile() };
+    delete v1.skills;
+    await fakeBrowser.storage.local.set({ profile: v1 });
+
+    const readBack = await getProfile();
+    expect(readBack.skills).toEqual([]);
+    // And nothing else was disturbed on the way.
+    expect(readBack.personal).toEqual(sampleProfile().personal);
+    expect(readBack.workHistory).toEqual(sampleProfile().workHistory);
   });
 });
 

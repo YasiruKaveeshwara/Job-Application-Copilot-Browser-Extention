@@ -192,16 +192,29 @@ test.describe('the unpacked production build', () => {
   });
 
   test('has the real generator wired in and no trace of the mock', () => {
-    // The negative half: MockGenerator's own strings. `VITE_USE_MOCK_GENERATOR`
-    // is included because the flag name surviving into the bundle means it is
-    // being read at runtime rather than substituted at build time — which is how
-    // the mock got shipped before Phase 18, decided by an environment variable
-    // that a release build has no business consulting.
-    for (const needle of ['Mock draft for', 'MockGenerator', 'VITE_USE_MOCK_GENERATOR']) {
+    // The negative half: MockGenerator's own strings, and MockExtractor's — the
+    // same build-time flag swaps both (lib/generator/index.ts,
+    // lib/extractor/index.ts). `VITE_USE_MOCK_GENERATOR` is included because the
+    // flag name surviving into the bundle means it is being read at runtime rather
+    // than substituted at build time — which is how the mock got shipped before
+    // Phase 18, decided by an environment variable that a release build has no
+    // business consulting.
+    for (const needle of [
+      'Mock draft for',
+      'MockGenerator',
+      'VITE_USE_MOCK_GENERATOR',
+      'MockExtractor',
+      // The canned CV's own marker: if a review screen ever shows this address,
+      // the mock extractor is answering in a build a user installed.
+      'mock.candidate@example.com',
+    ]) {
       expect(occurrences(needle), `${needle} is in the build`).toEqual([]);
     }
     // The positive half. Absence of the mock would also be satisfied by a build
-    // with no generator at all, so the real endpoint is asserted present.
+    // with no generator at all, so the real endpoint is asserted present. It
+    // appears in exactly one bundle: both the answer generator and the CV
+    // extractor run in the background, so no page ever holds the API key or the
+    // provider URL.
     expect(occurrences('generativelanguage.googleapis.com')).toEqual(['background.js']);
   });
 

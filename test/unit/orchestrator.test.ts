@@ -5,7 +5,14 @@ import { MockGenerator } from '../../lib/generator/mock-generator';
 import { GeneratorError } from '../../lib/generator/types';
 import type { BuiltPrompt, Generator } from '../../lib/generator/types';
 import { MOCK_GENERATOR_FLAG, usingMockGenerator } from '../../lib/generator';
-import { saveProfile, saveSettings, emptyProfile, DEFAULT_MODEL_ID } from '../../lib/storage';
+import { MOCK_EXTRACTED_CV } from '../../lib/extractor/mock-extractor';
+import {
+  getProfile,
+  saveProfile,
+  saveSettings,
+  emptyProfile,
+  DEFAULT_MODEL_ID,
+} from '../../lib/storage';
 import { getFieldMappings, saveFieldMapping } from '../../lib/mapping-cache';
 import { sendMessage } from '../../lib/messaging';
 import background from '../../entrypoints/background';
@@ -503,5 +510,51 @@ describe('background REQUEST_GENERATION handler', () => {
 
     expect(answers).toHaveLength(1);
     expect(await getFieldMappings('jobs.example.com')).toHaveLength(1);
+  });
+
+  it('answers an EXTRACT_CV message without saving anything', async () => {
+    vi.stubEnv(MOCK_GENERATOR_FLAG, 'true');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const extracted = await sendMessage('EXTRACT_CV', { pdfBase64: btoa('%PDF-1.7 pretend') });
+
+    expect(extracted).toEqual(MOCK_EXTRACTED_CV);
+    expect(fetchMock).not.toHaveBeenCalled();
+    // The whole point of the message: the profile is untouched until the user
+    // confirms a review on the options page.
+    expect(await getProfile()).toEqual(emptyProfile());
+  });
+
+  it('sends a CV extraction failure back to the options page as a rejection', async () => {
+    // Mock extractor off and no API key stored: it fails on config, before a
+    // request is built, and the page gets an error it can word.
+    vi.stubEnv(MOCK_GENERATOR_FLAG, '');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(sendMessage('EXTRACT_CV', { pdfBase64: btoa('x') })).rejects.toThrow(/API key/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('words a CV extraction failure the same way a generation failure is worded', async () => {
+    // The mapping, not the provider's own text: a rejected key reads as an
+    // instruction, and nothing from the response body crosses the boundary.
+    vi.stubEnv(MOCK_GENERATOR_FLAG, '');
+    await saveSettings({ apiKey: 'a-key', modelId: 'gemini-test-model' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        json: () => Promise.resolve({ error: { message: 'API key not valid. Pass a valid key.' } }),
+        text: () => Promise.resolve('API key not valid. Pass a valid key.'),
+      } as unknown as Response),
+    );
+
+    await expect(sendMessage('EXTRACT_CV', { pdfBase64: btoa('%PDF-1.7') })).rejects.toThrow(
+      /Gemini rejected the API key \(HTTP 401\)/,
+    );
   });
 });

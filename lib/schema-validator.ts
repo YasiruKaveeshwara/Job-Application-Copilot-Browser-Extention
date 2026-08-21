@@ -26,8 +26,13 @@ function describeType(value: unknown): string {
   return typeof value;
 }
 
-/** Unwrap a ```json … ``` fence, which models add even when told not to. */
-function stripCodeFence(text: string): string {
+/**
+ * Unwrap a ```json … ``` fence, which models add even when told not to.
+ *
+ * Exported for the CV extractor's validator (lib/extractor/schema.ts), which
+ * meets the same habit on a different response shape.
+ */
+export function stripCodeFence(text: string): string {
   const trimmed = text.trim();
   const fenced = /^```[a-zA-Z]*[ \t]*\r?\n([\s\S]*?)\r?\n?```$/.exec(trimmed);
   return fenced ? fenced[1]!.trim() : trimmed;

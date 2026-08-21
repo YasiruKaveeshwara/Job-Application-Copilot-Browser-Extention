@@ -1,7 +1,8 @@
 import { browser, defineBackground } from '#imports';
 import { onMessage } from '../lib/messaging';
-import { generateAnswers } from '../lib/orchestrator';
+import { generateAnswers, describeGenerationFailure } from '../lib/orchestrator';
 import { saveFieldMapping } from '../lib/mapping-cache';
+import { getExtractor } from '../lib/extractor';
 
 /**
  * Make the toolbar button open the review panel.
@@ -35,6 +36,23 @@ export default defineBackground(() => {
   // so the panel never touches storage directly, and so a save that fails comes
   // back as a rejection the card can show.
   onMessage('SAVE_FIELD_MAPPING', ({ data }) => saveFieldMapping(data));
+
+  // A CV the user uploaded on the options page. Wired straight to the extractor
+  // because there is nothing to orchestrate — one request, one answer — and it
+  // runs here rather than in the page so the API key and the provider endpoint
+  // stay in this bundle. Nothing is saved: the reply is data for the review
+  // screen, which writes only what the user then ticks.
+  //
+  // Failures go through the same wording as a generation failure, so a wrong key
+  // or an unreachable API reads the same on the options page as it does in the
+  // panel — and no provider payload crosses the message boundary.
+  onMessage('EXTRACT_CV', async ({ data }) => {
+    try {
+      return await getExtractor().extract(data.pdfBase64);
+    } catch (error) {
+      throw new Error(describeGenerationFailure(error), { cause: error });
+    }
+  });
 
   bindSidePanelToToolbarIcon();
 });
