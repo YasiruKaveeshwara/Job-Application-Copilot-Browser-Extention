@@ -93,7 +93,10 @@ describe('extraction schema — the fields a CV may never fill', () => {
       'narrativeFragments',
       { projectsRaw: [{ name: 'COBOL', description: '', narrativeFragments: ['Led it'] }] },
     ],
-    ['standardAnswers', { standardAnswers: [{ questionPattern: 'why us', answerText: 'Because' }] }],
+    [
+      'standardAnswers',
+      { standardAnswers: [{ questionPattern: 'why us', answerText: 'Because' }] },
+    ],
     ['stylePreferences', { stylePreferences: { tone: 'formal', avoid: [], length: 'concise' } }],
     ['resumeVariants', { resumeVariants: [{ label: 'default', fileRef: 'cv.pdf' }] }],
   ];
@@ -112,9 +115,7 @@ describe('extraction schema — the fields a CV may never fill', () => {
   it('rejects a `projects` key, so a drift back to the profile shape is caught', () => {
     // ExtractedProfileData deliberately calls this `projectsRaw`; the two shapes
     // differ by exactly the decisions a document cannot make.
-    expect(() => validateExtractedProfile({ projects: [{ name: 'COBOL' }] })).toThrow(
-      /projects/,
-    );
+    expect(() => validateExtractedProfile({ projects: [{ name: 'COBOL' }] })).toThrow(/projects/);
   });
 
   it('rejects any other unrecognized key rather than ignoring it', () => {

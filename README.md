@@ -8,11 +8,17 @@ edit, and insert every answer yourself.
 ## Features
 
 - **Universal field detection** — finds form inputs, textareas, ARIA-labelled elements, and inputs inside shadow DOM. Resolves labels via `label[for]`, `aria-label`/`aria-labelledby`, and proximity fallback.
-- **Profile-driven drafts** — retrieves the most relevant fragments from your work history, projects, and standard answers for each field before calling the model.
+- **3-layer relevance filtering** — uses hard type filters (ignoring radio/checkbox/dropdowns/search boxes), regex heuristics, and an AI relevance classifier to ensure only genuine job application text fields are shown.
+- **Instant zero-cost profile matching** — deterministic direct matching for static fields (Full Name, First/Last Name, Email, Phone, LinkedIn, GitHub, Portfolio, University, Degree, Company, Role) with zero latency and zero token spend.
+- **AI semantic standard answer matching & paraphrasing** — saved standard answer templates (e.g. cover letters, motivation) are semantically matched to relevant fields and paraphrased to match the specific job title and company context with clean multi-paragraph letter formatting.
+- **Dynamic model discovery** — queries the Google Gemini API using your API key on startup to discover all available text generation models on your account.
+- **Automatic model failover & recovery** — if a model is rate-limited (`HTTP 429`), decommissioned (`HTTP 404`), or overloaded (`HTTP 5xx`), the extension automatically fails over to the next best available model and seamlessly updates your active setting.
+- **Profile-driven drafts** — retrieves the most relevant fragments from your work history, projects, and skills for open-ended questions before calling the model.
 - **CV import with explicit confirmation** — upload a PDF CV and the model reads what it can off it; every extracted value is shown grouped by category, editable, and unticked wherever it would change something you typed. Nothing is saved until you confirm. See [Importing a CV](#importing-a-cv).
 - **Bring-your-own-key** — your Gemini API key lives in local extension storage only. It is never synced to your browser account.
 - **Answer cache** — identical (field, role type, site) combinations reuse the previous draft until your profile changes or 7 days pass.
 - **Learned corrections** — manually correct a misclassified field label once and the correction is remembered per site.
+- **Embedded side panel settings** — configure API settings, manage profile data, and review drafts all within the side panel or dedicated options page.
 - **No auto-submit, no bulk apply** — you insert each answer yourself after reading it.
 
 ## Tech stack
@@ -125,7 +131,7 @@ npm run build        # production build → .output/chrome-mv3/
 npm run zip          # build, then package it → .output/*.zip
 npm run typecheck    # wxt prepare && tsc --noEmit
 npm run lint         # eslint (0 warnings = passing)
-npm run test         # vitest unit tests (313 tests)
+npm run test         # vitest unit tests (358 tests)
 npm run test:e2e     # playwright e2e tests (requires built extension)
 npm run format       # prettier --write
 ```
@@ -161,16 +167,11 @@ node test/e2e/static-server.mjs   # serves test-fixtures/ on http://localhost:39
 Open `http://localhost:3999/standard-labels.html` in Chrome, click the toolbar
 button to open the side panel, and press **Scan this page**.
 
-## Models
+## Dynamic Model Selection & Automatic Failover
 
-| Model ID                | Notes                        |
-| ----------------------- | ---------------------------- |
-| `gemini-3.7-flash`      | Default — best draft quality |
-| `gemini-3.5-flash`      | Middle ground                |
-| `gemini-3.5-flash-lite` | Fastest and cheapest         |
-| `gemini-2.5-flash`      | Older stable                 |
-
-Any valid Gemini model ID can be typed into the model field in the options page.
+- **Dynamic Model Discovery:** Models are not hardcoded. When you provide a Gemini API key, the extension queries `GET /v1beta/models` on startup to populate the selector with the real generation models available on your Google AI Studio account. You can also click **Refresh Models** at any time in the settings.
+- **Automatic Model Failover:** If your active model experiences **Quota Exceeded (`HTTP 429`)**, **Model Deprecation / Not Found (`HTTP 404`)**, or **Server Overloaded (`HTTP 5xx`)**, the extension automatically fails over to the next best available model (prioritizing high-speed Flash models) and updates your active model in settings.
+- **Custom Model Support:** Any custom model identifier can still be entered or saved directly.
 
 ## What ships in a build
 
@@ -311,18 +312,21 @@ it are in the log.
 
 ```text
 entrypoints/
-  background.ts          # Service worker: message handlers
+  background.ts          # Service worker: message handlers, startup model sync
   content.ts             # Content script: scan + insert
-  options/App.tsx         # Profile & settings editor
-  sidepanel/App.tsx       # Review panel
+  options/App.tsx        # Profile & settings editor
+  sidepanel/App.tsx      # Side panel review panel + embedded settings
 lib/
-  types.ts               # Shared data contracts (DetectedField, ProfileData, …)
-  storage.ts             # Local-only profile + settings persistence (WXT storage)
+  types.ts               # Shared data contracts (DetectedField, ProfileData, ModelChoice, …)
+  storage.ts             # Local-only profile, settings & dynamic model storage
   field-detector.ts      # DOM scanner (label resolution, shadow DOM, iframes)
+  field-relevance.ts     # 3-layer filter (hard type + heuristics + AI relevance)
+  direct-matcher.ts      # Deterministic zero-token static profile matching
+  standard-answer-matcher.ts # AI semantic standard answer matching & paraphrasing
   job-context.ts         # Page text extraction + role-family synonym map
   messaging.ts           # Typed message contracts (@webext-core/messaging)
   retrieval.ts           # BM25-style fragment retrieval from profile
-  gemini-client.ts       # Shared Gemini transport (URL, key header, error mapping)
+  gemini-client.ts       # Shared Gemini transport (URL, models list, auto-failover)
   generator/
     types.ts             # Generator interface + GeneratorError
     gemini-generator.ts  # Gemini API implementation
@@ -334,14 +338,14 @@ lib/
     mock-extractor.ts    # Canned CV for tests and dev
     merge.ts             # Review model: build items, edit them, apply the ticked ones
     upload.ts            # File → base64, and what counts as a usable PDF
-  prompt-builder.ts      # Batched prompt assembly
+  prompt-builder.ts      # Batched prompt assembly (honesty, format guidance)
   schema-validator.ts    # GeneratedAnswer[] shape validation
   orchestrator.ts        # Retrieve → prompt → generate → validate pipeline
   cache.ts               # Answer cache with profile-hash invalidation
   mapping-cache.ts       # Per-site learned label corrections
   insert-handler.ts      # Native-setter insertion (React-compatible)
 test/
-  unit/                  # Vitest specs (313 tests)
+  unit/                  # Vitest specs (358 tests)
   e2e/                   # Playwright specs (real browser, built extension)
 test-fixtures/           # Static HTML pages served for E2E tests
 docs/
