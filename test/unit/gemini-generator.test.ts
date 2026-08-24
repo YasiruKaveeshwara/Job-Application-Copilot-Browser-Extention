@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { saveSettings, CHEAP_MODEL_ID } from '../../lib/storage';
+import { saveSettings, getSettings, CHEAP_MODEL_ID } from '../../lib/storage';
 import {
   GeminiGenerator,
   GEMINI_MODELS_BASE,
   generateContentUrl,
 } from '../../lib/generator/gemini-generator';
+import { fetchGeminiModels } from '../../lib/gemini-client';
 import { GeneratorError } from '../../lib/generator/types';
 import type { BuiltPrompt } from '../../lib/generator/types';
 import type { GeneratedAnswer } from '../../lib/types';
@@ -268,6 +269,76 @@ describe('GeminiGenerator response handling', () => {
   });
 });
 
+describe('GeminiGenerator model failover and recovery', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    fakeBrowser.reset();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await saveSettings({ apiKey: API_KEY, modelId: MODEL_ID });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('automatically fails over to next model on 429 quota exceeded and updates active model', async () => {
+    // First call (MODEL_ID) fails with 429 quota exceeded
+    // Second call (fallback model) succeeds with answers
+    fetchMock
+      .mockResolvedValueOnce(
+        httpError(429, {
+          error: {
+            code: 429,
+            message: 'Quota exceeded for requests.',
+            status: 'RESOURCE_EXHAUSTED',
+          },
+        }),
+      )
+      .mockResolvedValueOnce(geminiOk(JSON.stringify(answers)));
+
+    const result = await new GeminiGenerator().generate(prompt);
+    expect(result).toEqual(answers);
+
+    // Two attempts should have been made
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Active model in settings should have been updated to the working fallback model
+    const settings = await getSettings();
+    expect(settings.modelId).not.toBe(MODEL_ID);
+    expect(settings.modelId.length).toBeGreaterThan(0);
+  });
+
+  it('automatically fails over to next model on 404 model not found', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        httpError(404, {
+          error: { code: 404, message: 'Model not found or deprecated.', status: 'NOT_FOUND' },
+        }),
+      )
+      .mockResolvedValueOnce(geminiOk(JSON.stringify(answers)));
+
+    const result = await new GeminiGenerator().generate(prompt);
+    expect(result).toEqual(answers);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not fail over on 401 invalid API key because all models would fail', async () => {
+    fetchMock.mockResolvedValueOnce(
+      httpError(401, {
+        error: { code: 401, message: 'API key not valid.', status: 'UNAUTHENTICATED' },
+      }),
+    );
+
+    const error = await captureError(new GeminiGenerator().generate(prompt));
+    expect(error.kind).toBe('http');
+    expect(error.status).toBe(401);
+    // Should stop immediately after first attempt
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('GeminiGenerator configuration guard', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -293,6 +364,85 @@ describe('GeminiGenerator configuration guard', () => {
     const error = await captureError(new GeminiGenerator().generate(prompt));
     expect(error.kind).toBe('config');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchGeminiModels', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fakeBrowser.reset();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('fetches models, filters to generateContent models, and formats choices', async () => {
+    const rawPayload = {
+      models: [
+        {
+          name: 'models/gemini-2.5-flash',
+          displayName: 'Gemini 2.5 Flash',
+          description: 'Next generation model',
+          supportedGenerationMethods: ['generateContent', 'countTokens'],
+        },
+        {
+          name: 'models/text-embedding-004',
+          displayName: 'Text Embedding 004',
+          supportedGenerationMethods: ['embedContent'],
+        },
+        {
+          name: 'models/gemini-1.5-pro',
+          displayName: 'Gemini 1.5 Pro',
+          supportedGenerationMethods: ['generateContent'],
+        },
+      ],
+    };
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(rawPayload),
+    });
+
+    const models = await fetchGeminiModels(API_KEY);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      GEMINI_MODELS_BASE,
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ 'x-goog-api-key': API_KEY }),
+      }),
+    );
+
+    // Text embedding model should be excluded
+    expect(models).toHaveLength(2);
+    expect(models.map((m) => m.id)).toEqual(['gemini-2.5-flash', 'gemini-1.5-pro']);
+    expect(models[0]!.label).toBe('Gemini 2.5 Flash (gemini-2.5-flash)');
+    expect(models[0]!.description).toBe('Next generation model');
+  });
+
+  it('throws config error if no API key is provided and none stored', async () => {
+    const error = await captureError(fetchGeminiModels(''));
+    expect(error.kind).toBe('config');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('handles HTTP error responses gracefully', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: () => Promise.resolve(JSON.stringify({ error: { message: 'API key invalid' } })),
+    });
+
+    const error = await captureError(fetchGeminiModels(API_KEY));
+    expect(error.kind).toBe('http');
+    expect(error.status).toBe(401);
   });
 });
 

@@ -1,5 +1,7 @@
-import type { Settings } from '@/lib/types';
-import { MODEL_CHOICES } from '@/lib/storage';
+import { useEffect, useState } from 'react';
+import type { Settings, ModelChoice } from '@/lib/types';
+import { getAvailableModels, DEFAULT_AVAILABLE_MODELS } from '@/lib/storage';
+import { sendMessage } from '@/lib/messaging';
 import { Section, TextInput } from './primitives';
 
 const SELECT_CLASSES =
@@ -12,8 +14,62 @@ export function ApiSettingsSection({
   value: Settings;
   onChange: (v: Settings) => void;
 }) {
-  const isKnownModel = MODEL_CHOICES.some((choice) => choice.id === value.modelId);
+  const [models, setModels] = useState<ModelChoice[]>(DEFAULT_AVAILABLE_MODELS);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+
   const hasKey = value.apiKey.trim().length > 0;
+
+  // Load cached models from storage on mount
+  useEffect(() => {
+    let active = true;
+    getAvailableModels()
+      .then((stored) => {
+        if (active && stored && stored.length > 0) {
+          setModels(stored);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleRefreshModels = async () => {
+    if (!hasKey) {
+      setRefreshError('Please enter an API key first');
+      setRefreshMessage(null);
+      return;
+    }
+
+    setIsRefreshing(true);
+    setRefreshMessage(null);
+    setRefreshError(null);
+
+    try {
+      const fetched = await sendMessage('FETCH_AVAILABLE_MODELS', {
+        apiKey: value.apiKey.trim(),
+      });
+      if (fetched && fetched.length > 0) {
+        setModels(fetched);
+        setRefreshMessage(`✓ Found ${fetched.length} available models`);
+        // If current model is not in fetched list, switch to the first (top recommended) model
+        if (!fetched.some((m) => m.id === value.modelId)) {
+          onChange({ ...value, modelId: fetched[0]!.id });
+        }
+      } else {
+        setRefreshError('No generation models returned for this key');
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Could not fetch models';
+      setRefreshError(msg);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const isKnownModel = models.some((choice) => choice.id === value.modelId);
 
   return (
     <Section
@@ -36,7 +92,11 @@ export function ApiSettingsSection({
         label="Gemini API Key"
         type="password"
         value={value.apiKey}
-        onChange={(apiKey) => onChange({ ...value, apiKey })}
+        onChange={(apiKey) => {
+          onChange({ ...value, apiKey });
+          setRefreshMessage(null);
+          setRefreshError(null);
+        }}
         placeholder="AIza…"
         hint={hasKey ? '●●●●●●●● (active)' : 'Starts with AIza…'}
       />
@@ -44,15 +104,46 @@ export function ApiSettingsSection({
       <label className="block">
         <div className="mb-1.5 flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-700">Model Selection</span>
-          <span className="text-[11px] text-indigo-600 font-medium">Fast & Reliable</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleRefreshModels}
+              disabled={isRefreshing || !hasKey}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              title="Query Gemini API for models available on your account"
+            >
+              <svg
+                className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+              <span>{isRefreshing ? 'Checking...' : 'Refresh Models'}</span>
+            </button>
+          </div>
         </div>
+
+        {refreshMessage && (
+          <div className="mb-1.5 text-[11px] text-emerald-600 font-medium">{refreshMessage}</div>
+        )}
+        {refreshError && (
+          <div className="mb-1.5 text-[11px] text-rose-600 font-medium">{refreshError}</div>
+        )}
+
         <select
           value={value.modelId}
           onChange={(e) => onChange({ ...value, modelId: e.target.value })}
           className={SELECT_CLASSES}
         >
-          {!isKnownModel && <option value={value.modelId}>{value.modelId} (custom saved)</option>}
-          {MODEL_CHOICES.map((choice) => (
+          {!isKnownModel && (
+            <option value={value.modelId}>
+              {value.modelId ? `${value.modelId} (custom / current)` : 'Select a model...'}
+            </option>
+          )}
+          {models.map((choice) => (
             <option key={choice.id} value={choice.id}>
               {choice.label}
             </option>

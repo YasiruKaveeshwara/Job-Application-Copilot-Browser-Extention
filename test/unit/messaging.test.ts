@@ -103,4 +103,21 @@ describe('messaging contracts', () => {
       /generation failed/,
     );
   });
+
+  it('round-trips FETCH_AVAILABLE_MODELS and GET_AVAILABLE_MODELS', async () => {
+    const models = [{ id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' }];
+    removers.push(
+      onMessage('FETCH_AVAILABLE_MODELS', ({ data }) => {
+        expect(data?.apiKey).toBe('test-key');
+        return models;
+      }),
+    );
+    removers.push(onMessage('GET_AVAILABLE_MODELS', () => models));
+
+    const fetched = await sendMessage('FETCH_AVAILABLE_MODELS', { apiKey: 'test-key' });
+    expect(fetched).toEqual(models);
+
+    const cached = await sendMessage('GET_AVAILABLE_MODELS', undefined);
+    expect(cached).toEqual(models);
+  });
 });

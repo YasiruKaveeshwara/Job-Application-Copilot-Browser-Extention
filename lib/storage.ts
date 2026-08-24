@@ -1,5 +1,5 @@
 import { storage } from '#imports';
-import type { ProfileData, Settings } from './types';
+import type { ProfileData, Settings, ModelChoice } from './types';
 
 // Local-only persistence for the user's profile. The `local:` prefix keeps the
 // data on-device (never synced to the browser account), per the build guide,
@@ -96,13 +96,36 @@ export const DEFAULT_MODEL_ID = 'gemini-3.7-flash';
 /** The cheaper, faster alternative. Same request shape, lower cost per page. */
 export const CHEAP_MODEL_ID = 'gemini-3.5-flash-lite';
 
-/** Models offered in the options page picker. Any other ID can still be stored. */
-export const MODEL_CHOICES: { id: string; label: string }[] = [
+/** Fallback default models offered before an API key is queried. */
+export const DEFAULT_AVAILABLE_MODELS: ModelChoice[] = [
   { id: DEFAULT_MODEL_ID, label: 'Gemini 3.7 Flash — best drafts (default)' },
   { id: CHEAP_MODEL_ID, label: 'Gemini 3.5 Flash Lite — fastest and cheapest' },
   { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — middle ground' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — older stable' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — reliable stable' },
+  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
 ];
+
+/** Models offered in the options page picker. Kept for backwards compatibility. */
+export const MODEL_CHOICES: ModelChoice[] = DEFAULT_AVAILABLE_MODELS;
+
+const AVAILABLE_MODELS_KEY = 'local:availableModels' as const;
+const availableModelsItem = storage.defineItem<ModelChoice[]>(AVAILABLE_MODELS_KEY, {
+  version: 1,
+  fallback: DEFAULT_AVAILABLE_MODELS,
+});
+
+/** Read the cached available models from storage, or fallback to defaults. */
+export async function getAvailableModels(): Promise<ModelChoice[]> {
+  const models = await availableModelsItem.getValue();
+  return Array.isArray(models) && models.length > 0 ? models : DEFAULT_AVAILABLE_MODELS;
+}
+
+/** Save dynamically fetched available models to storage. */
+export async function saveAvailableModels(models: ModelChoice[]): Promise<void> {
+  await availableModelsItem.setValue(models);
+}
 
 /** Settings for a fresh install: no key yet, default model. */
 export function defaultSettings(): Settings {

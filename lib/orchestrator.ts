@@ -10,6 +10,8 @@ import type { CacheInputs } from './cache';
 import { retrieveFragments } from './retrieval';
 import { buildPrompt } from './prompt-builder';
 import { validateGeneratedAnswers } from './schema-validator';
+import { matchDirectProfileAnswer } from './direct-matcher';
+import { matchAndParaphraseStandardAnswers } from './standard-answer-matcher';
 
 // The one path from "here are the fields on this page" to "here are the drafts".
 // Lives in lib/ rather than in the background entrypoint so it can be tested
@@ -104,20 +106,61 @@ export async function generateAnswers(
 
   try {
     const profile = await getProfile();
-    const fragmentsByField: Record<string, string[]> = {};
+
+    // 1. Direct profile matching: obvious fields (name, email, phone, links,
+    // university, company, etc.) already exist in the stored profile and do
+    // NOT need an LLM API call.
+    const directAnswers: Record<string, GeneratedAnswer> = {};
     for (const field of request.fields) {
+      const direct = matchDirectProfileAnswer(field, profile);
+      if (direct) directAnswers[field.tempId] = direct;
+    }
+
+    // Fields that still require AI generation (cover letters, open-ended answers, etc.)
+    const afterDirect = request.fields.filter((field) => directAnswers[field.tempId] === undefined);
+
+    // If all fields were directly answered from the profile, return immediately
+    // without touching the LLM or network.
+    if (afterDirect.length === 0) {
+      return reconcile(Object.values(directAnswers), request.fields);
+    }
+
+    // 2. Standard answer matching + paraphrasing: fields like "Cover Letter",
+    // "Message to hiring team", "Additional information" are semantically matched
+    // against saved standard answers and adapted for this specific job.
+    const standardAnswerResults = await matchAndParaphraseStandardAnswers(
+      afterDirect,
+      profile,
+      request.context,
+      generator,
+    );
+
+    // Fields that still need normal AI generation after standard answer matching.
+    const needsGeneration = afterDirect.filter(
+      (field) => standardAnswerResults[field.tempId] === undefined,
+    );
+
+    if (needsGeneration.length === 0) {
+      return reconcile(
+        [...Object.values(directAnswers), ...Object.values(standardAnswerResults)],
+        request.fields,
+      );
+    }
+
+    const fragmentsByField: Record<string, string[]> = {};
+    for (const field of needsGeneration) {
       fragmentsByField[field.tempId] = retrieveFragments(field, request.context, profile);
     }
 
     // Saved corrections, applied only after the generic detector has run, and
     // only as a hint in the prompt (build guide, Phase 14).
-    const hintsByField = await correctionHints(request.fields, request.context.url);
+    const hintsByField = await correctionHints(needsGeneration, request.context.url);
 
     // What has already been paid for. The key covers everything above plus the
     // model, so a hit means the same question, the same profile material, and the
     // same model as last time (build guide, Phase 15).
     const { modelId } = await getSettings();
-    const cacheInputs: CacheInputs[] = request.fields.map((field) => ({
+    const cacheInputs: CacheInputs[] = needsGeneration.map((field) => ({
       field,
       context: request.context,
       fragments: fragmentsByField[field.tempId] ?? [],
@@ -128,9 +171,11 @@ export async function generateAnswers(
     const keys = await answerCacheKeys(cacheInputs);
     const cached = await readCachedAnswers(keys);
 
-    const missing = request.fields.filter((field) => cached[field.tempId] === undefined);
-    // Every field answered from cache: no prompt, no request, no key needed.
-    if (missing.length === 0) return reconcile(Object.values(cached), request.fields);
+    const missing = needsGeneration.filter((field) => cached[field.tempId] === undefined);
+    // Every remaining field answered from cache: no prompt, no request, no key needed.
+    if (missing.length === 0) {
+      return reconcile([...Object.values(directAnswers), ...Object.values(cached)], request.fields);
+    }
 
     const prompt = buildPrompt(
       missing,
@@ -147,7 +192,15 @@ export async function generateAnswers(
     const fresh = reconcile(validated, missing);
     // After the answers are in hand, and never in a way that can fail the call.
     await writeCachedAnswers(keys, fresh);
-    return reconcile([...Object.values(cached), ...fresh], request.fields);
+    return reconcile(
+      [
+        ...Object.values(directAnswers),
+        ...Object.values(standardAnswerResults),
+        ...Object.values(cached),
+        ...fresh,
+      ],
+      request.fields,
+    );
   } catch (error) {
     // The full error (stack, cause, provider detail) goes to the service worker
     // log; only the mapped sentence crosses back to the UI. Never log the prompt

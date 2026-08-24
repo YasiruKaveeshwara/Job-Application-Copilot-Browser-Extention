@@ -21,13 +21,19 @@ export const PAGE_TEXT_BUDGET = 12_000;
 /** Max characters kept for a field's surrounding-text excerpt. */
 const SURROUNDING_TEXT_BUDGET = 200;
 
-/** ARIA roles that behave like form fields even on non-form elements. */
-const FIELD_ROLES = ['textbox', 'combobox', 'listbox', 'radiogroup', 'checkbox', 'switch'];
+/**
+ * ARIA roles that behave like text-fillable form fields.
+ *
+ * Excluded: `combobox`, `listbox` (dropdown-like), `radiogroup`, `checkbox`,
+ * `switch` — these are non-text controls that the extension cannot draft
+ * meaningful answers for.
+ */
+const FIELD_ROLES = ['textbox'];
 
 const FIELD_SELECTOR = [
   'input',
   'textarea',
-  'select',
+  // `select` excluded: dropdowns are not text-fillable.
   '[contenteditable]',
   ...FIELD_ROLES.map((r) => `[role="${r}"]`),
 ].join(', ');
@@ -37,7 +43,17 @@ const FIELD_SELECTOR = [
  * generator is never asked to write a value for a submit button or a hidden
  * CSRF token.
  */
-const IGNORED_INPUT_TYPES = new Set(['hidden', 'submit', 'button', 'reset', 'image', 'file']);
+const IGNORED_INPUT_TYPES = new Set([
+  'hidden',
+  'submit',
+  'button',
+  'reset',
+  'image',
+  'file',
+  // Non-text controls: the extension cannot draft text answers for them.
+  'checkbox',
+  'radio',
+]);
 
 let domRefCounter = 0;
 

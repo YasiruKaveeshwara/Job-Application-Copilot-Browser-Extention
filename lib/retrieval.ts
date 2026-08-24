@@ -212,7 +212,8 @@ function tokenize(text: string): string[] {
   return terms;
 }
 
-type FragmentSource = 'work-history' | 'project' | 'standard-answer';
+type FragmentSource =
+  'personal' | 'education' | 'work-history' | 'project' | 'skills' | 'standard-answer';
 
 interface Candidate {
   /** Prompt-ready text, with provenance so a bare bullet isn't context-free. */
@@ -231,53 +232,139 @@ function hasText(value: string): boolean {
 }
 
 /**
- * Flatten the profile into scorable fragments: work-history bullets, project
- * narrative fragments, and standard answers.
+ * Flatten the profile into scorable fragments: personal details, education,
+ * work-history bullets, project narrative fragments, skills, and standard answers.
  */
 function collectCandidates(profile: ProfileData): Candidate[] {
   const candidates: Candidate[] = [];
 
-  for (const job of profile.workHistory) {
-    const provenance = tokenize(`${job.role} ${job.company}`);
-    const dates = hasText(job.dates) ? ` (${job.dates.trim()})` : '';
-    for (const bullet of job.bullets) {
-      if (!hasText(bullet)) continue;
+  // Personal info (name, email, phone, links)
+  if (profile.personal) {
+    if (hasText(profile.personal.name ?? '')) {
       candidates.push({
-        source: 'work-history',
-        text: `${job.role.trim()} at ${job.company.trim()}${dates}: ${bullet.trim()}`,
-        terms: [...tokenize(bullet), ...provenance],
+        source: 'personal',
+        text: `Applicant name: ${profile.personal.name.trim()}`,
+        terms: tokenize(`name fullname firstname lastname applicant ${profile.personal.name}`),
+      });
+    }
+    if (hasText(profile.personal.email ?? '')) {
+      candidates.push({
+        source: 'personal',
+        text: `Applicant email: ${profile.personal.email.trim()}`,
+        terms: tokenize(`email address mail contact ${profile.personal.email}`),
+      });
+    }
+    if (hasText(profile.personal.phone ?? '')) {
+      candidates.push({
+        source: 'personal',
+        text: `Applicant phone: ${profile.personal.phone.trim()}`,
+        terms: tokenize(`phone telephone cellphone number ${profile.personal.phone}`),
+      });
+    }
+    if (hasText(profile.personal.links?.linkedin ?? '')) {
+      candidates.push({
+        source: 'personal',
+        text: `LinkedIn profile: ${profile.personal.links.linkedin!.trim()}`,
+        terms: tokenize(`linkedin url profile link ${profile.personal.links.linkedin}`),
+      });
+    }
+    if (hasText(profile.personal.links?.github ?? '')) {
+      candidates.push({
+        source: 'personal',
+        text: `GitHub profile: ${profile.personal.links.github!.trim()}`,
+        terms: tokenize(`github url profile link git ${profile.personal.links.github}`),
+      });
+    }
+    if (hasText(profile.personal.links?.portfolio ?? '')) {
+      candidates.push({
+        source: 'personal',
+        text: `Portfolio website: ${profile.personal.links.portfolio!.trim()}`,
+        terms: tokenize(`portfolio website url site homepage ${profile.personal.links.portfolio}`),
       });
     }
   }
 
-  for (const project of profile.projects) {
-    const stack = project.techStack.filter(hasText).join(', ');
-    const provenance = tokenize(
-      `${project.name} ${stack} ${project.description} ${project.individualOrGroup}`,
-    );
-    const descriptor =
-      stack.length > 0 ? `${project.individualOrGroup}, ${stack}` : project.individualOrGroup;
-    for (const fragment of project.narrativeFragments) {
-      if (!hasText(fragment)) continue;
+  // Education
+  if (Array.isArray(profile.education)) {
+    for (const edu of profile.education) {
+      if (!hasText(edu.institution ?? '') && !hasText(edu.program ?? '')) continue;
+      const dates = hasText(edu.dates ?? '') ? ` (${edu.dates.trim()})` : '';
+      const prog = hasText(edu.program ?? '') ? edu.program.trim() : 'Degree';
+      const inst = hasText(edu.institution ?? '') ? ` at ${edu.institution.trim()}` : '';
       candidates.push({
-        source: 'project',
-        text: `Project "${project.name.trim()}" (${descriptor}): ${fragment.trim()}`,
-        terms: [...tokenize(fragment), ...provenance],
+        source: 'education',
+        text: `Education: ${prog}${inst}${dates}`,
+        terms: tokenize(
+          `education degree university college school institution program major bachelor master phd diploma gpa ${edu.program ?? ''} ${edu.institution ?? ''} ${edu.dates ?? ''}`,
+        ),
       });
     }
   }
 
-  for (const answer of profile.standardAnswers) {
-    if (!hasText(answer.answerText)) continue;
-    const patternTerms = tokenize(answer.questionPattern);
-    candidates.push({
-      source: 'standard-answer',
-      text: `Previously answered "${answer.questionPattern.trim()}": ${answer.answerText.trim()}`,
-      // The question pattern counts twice: it is the part written specifically
-      // to be matched against a field label, so it should outweigh prose that
-      // merely happens to share vocabulary.
-      terms: [...tokenize(answer.answerText), ...patternTerms, ...patternTerms],
-    });
+  // Work history
+  if (Array.isArray(profile.workHistory)) {
+    for (const job of profile.workHistory) {
+      const provenance = tokenize(`${job.role} ${job.company}`);
+      const dates = hasText(job.dates) ? ` (${job.dates.trim()})` : '';
+      for (const bullet of job.bullets) {
+        if (!hasText(bullet)) continue;
+        candidates.push({
+          source: 'work-history',
+          text: `${job.role.trim()} at ${job.company.trim()}${dates}: ${bullet.trim()}`,
+          terms: [...tokenize(bullet), ...provenance],
+        });
+      }
+    }
+  }
+
+  // Projects
+  if (Array.isArray(profile.projects)) {
+    for (const project of profile.projects) {
+      const stack = project.techStack.filter(hasText).join(', ');
+      const provenance = tokenize(
+        `${project.name} ${stack} ${project.description} ${project.individualOrGroup}`,
+      );
+      const descriptor =
+        stack.length > 0 ? `${project.individualOrGroup}, ${stack}` : project.individualOrGroup;
+      for (const fragment of project.narrativeFragments) {
+        if (!hasText(fragment)) continue;
+        candidates.push({
+          source: 'project',
+          text: `Project "${project.name.trim()}" (${descriptor}): ${fragment.trim()}`,
+          terms: [...tokenize(fragment), ...provenance],
+        });
+      }
+    }
+  }
+
+  // Skills
+  if (Array.isArray(profile.skills) && profile.skills.length > 0) {
+    const validSkills = profile.skills.filter(hasText);
+    if (validSkills.length > 0) {
+      candidates.push({
+        source: 'skills',
+        text: `Skills & technologies: ${validSkills.join(', ')}`,
+        terms: tokenize(
+          `skills technologies tools capabilities stack languages frameworks ${validSkills.join(' ')}`,
+        ),
+      });
+    }
+  }
+
+  // Standard answers
+  if (Array.isArray(profile.standardAnswers)) {
+    for (const answer of profile.standardAnswers) {
+      if (!hasText(answer.answerText)) continue;
+      const patternTerms = tokenize(answer.questionPattern);
+      candidates.push({
+        source: 'standard-answer',
+        text: `Previously answered "${answer.questionPattern.trim()}": ${answer.answerText.trim()}`,
+        // The question pattern counts twice: it is the part written specifically
+        // to be matched against a field label, so it should outweigh prose that
+        // merely happens to share vocabulary.
+        terms: [...tokenize(answer.answerText), ...patternTerms, ...patternTerms],
+      });
+    }
   }
 
   return dedupe(candidates);

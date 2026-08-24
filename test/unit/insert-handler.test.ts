@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { insertIntoField } from '../../lib/insert-handler';
-import { detectFields } from '../../lib/field-detector';
+import { detectFields, DOM_REF_ATTR } from '../../lib/field-detector';
 import type { InsertFieldResult } from '../../lib/messaging';
 
 // The framework-controlled case needs a real browser and lives in
@@ -15,6 +15,16 @@ function refFor(html: string, index = 0): string {
   const field = fields[index];
   expect(field, `no field at index ${index} in ${html}`).toBeDefined();
   return field!.domRef;
+}
+
+/** Render HTML and manually stamp a domRef on the matching element. */
+function refForElement(html: string, selector: string): string {
+  document.body.innerHTML = html;
+  const el = document.querySelector(selector);
+  expect(el, `no element matching ${selector} in ${html}`).not.toBeNull();
+  const ref = 'jac-manual-ref';
+  el!.setAttribute(DOM_REF_ATTR, ref);
+  return ref;
 }
 
 function insert(domRef: string, finalText: string): InsertFieldResult {
@@ -74,7 +84,7 @@ describe('insertIntoField', () => {
         <option value="lk">Sri Lanka</option>
       </select>`;
 
-    const ref = refFor(html);
+    const ref = refForElement(html, 'select');
     const select = document.querySelector('select')!;
 
     expect(insert(ref, 'Sri Lanka')).toEqual({ success: true });
@@ -85,8 +95,9 @@ describe('insertIntoField', () => {
   });
 
   it('refuses to force a dropdown to a value it does not offer', () => {
-    const ref = refFor(
+    const ref = refForElement(
       '<label for="a">Country</label><select id="a"><option value="us">United States</option></select>',
+      'select',
     );
 
     const result = insert(ref, 'Atlantis');
@@ -143,7 +154,10 @@ describe('insertIntoField', () => {
   });
 
   it('explains that a widget with no text of its own cannot be filled', () => {
-    const ref = refFor('<label for="a">Preference</label><div id="a" role="listbox"></div>');
+    const ref = refForElement(
+      '<label for="a">Preference</label><div id="a" role="listbox"></div>',
+      '#a',
+    );
 
     const result = insert(ref, 'Remote');
     expect(result.success).toBe(false);

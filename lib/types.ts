@@ -92,3 +92,10 @@ export interface Settings {
   apiKey: string;
   modelId: string;
 }
+
+/** One model option offered in the model selector. */
+export interface ModelChoice {
+  id: string;
+  label: string;
+  description?: string;
+}

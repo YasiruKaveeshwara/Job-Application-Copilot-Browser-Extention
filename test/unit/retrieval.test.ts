@@ -339,6 +339,131 @@ describe('retrieveFragments', () => {
     expect(results).toEqual([]);
   });
 
+  it('retrieves applicant name for name fields', () => {
+    const p: ProfileData = {
+      ...emptyProfile(),
+      personal: {
+        name: 'Yasiru Kaveeshwara',
+        email: 'yasiru@example.com',
+        phone: '+94 77 123 4567',
+        links: {
+          linkedin: 'https://linkedin.com/in/yasiruk',
+          github: 'https://github.com/yasiruk',
+        },
+      },
+    };
+
+    const nameResults = retrieveFragments(field({ resolvedLabel: 'Full Name' }), context(), p, 1);
+    expect(nameResults).toHaveLength(1);
+    expect(nameResults[0]).toBe('Applicant name: Yasiru Kaveeshwara');
+
+    const firstNameResults = retrieveFragments(
+      field({ resolvedLabel: 'First Name' }),
+      context(),
+      p,
+      1,
+    );
+    expect(firstNameResults).toHaveLength(1);
+    expect(firstNameResults[0]).toBe('Applicant name: Yasiru Kaveeshwara');
+  });
+
+  it('retrieves applicant email and phone for contact fields', () => {
+    const p: ProfileData = {
+      ...emptyProfile(),
+      personal: {
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        phone: '+44 20 7946 0991',
+        links: {},
+      },
+    };
+
+    const emailResults = retrieveFragments(
+      field({ resolvedLabel: 'Email Address' }),
+      context(),
+      p,
+      1,
+    );
+    expect(emailResults).toHaveLength(1);
+    expect(emailResults[0]).toBe('Applicant email: ada@example.com');
+
+    const phoneResults = retrieveFragments(
+      field({ resolvedLabel: 'Phone Number' }),
+      context(),
+      p,
+      1,
+    );
+    expect(phoneResults).toHaveLength(1);
+    expect(phoneResults[0]).toBe('Applicant phone: +44 20 7946 0991');
+  });
+
+  it('retrieves social profile links for matching fields', () => {
+    const p: ProfileData = {
+      ...emptyProfile(),
+      personal: {
+        name: 'Ada Lovelace',
+        email: 'ada@example.com',
+        phone: '',
+        links: {
+          linkedin: 'https://linkedin.com/in/adalovelace',
+          github: 'https://github.com/adalovelace',
+          portfolio: 'https://ada.dev',
+        },
+      },
+    };
+
+    const linkedin = retrieveFragments(
+      field({ resolvedLabel: 'LinkedIn Profile' }),
+      context(),
+      p,
+      1,
+    );
+    expect(linkedin).toEqual(['LinkedIn profile: https://linkedin.com/in/adalovelace']);
+
+    const github = retrieveFragments(field({ resolvedLabel: 'GitHub URL' }), context(), p, 1);
+    expect(github).toEqual(['GitHub profile: https://github.com/adalovelace']);
+
+    const portfolio = retrieveFragments(
+      field({ resolvedLabel: 'Portfolio Website' }),
+      context(),
+      p,
+      1,
+    );
+    expect(portfolio).toEqual(['Portfolio website: https://ada.dev']);
+  });
+
+  it('retrieves education and skills for matching fields', () => {
+    const p: ProfileData = {
+      ...emptyProfile(),
+      education: [
+        {
+          institution: 'University of Cambridge',
+          program: 'B.Sc. in Mathematics',
+          dates: '2020-2023',
+        },
+      ],
+      skills: ['TypeScript', 'React', 'Node.js'],
+    };
+
+    const edu = retrieveFragments(
+      field({ resolvedLabel: 'Highest Degree or Education' }),
+      context(),
+      p,
+      1,
+    );
+    expect(edu).toHaveLength(1);
+    expect(edu[0]).toContain('B.Sc. in Mathematics at University of Cambridge (2020-2023)');
+
+    const skills = retrieveFragments(
+      field({ resolvedLabel: 'Skills & Technologies' }),
+      context(),
+      p,
+      1,
+    );
+    expect(skills).toHaveLength(1);
+    expect(skills[0]).toBe('Skills & technologies: TypeScript, React, Node.js');
+  });
+
   it('makes no network call', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

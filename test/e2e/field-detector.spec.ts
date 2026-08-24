@@ -11,18 +11,17 @@ test('standard-labels.html detects every field with structured labels', async ({
   const fields = await detectInFrame(page);
 
   const byLabel = new Map(fields.map((f) => [f.resolvedLabel, f]));
-  expect([...byLabel.keys()].sort()).toEqual(
-    ['Country', 'Cover Letter', 'Email Address', 'Full Name'].sort(),
-  );
+  expect([...byLabel.keys()].sort()).toEqual(['Cover Letter', 'Email Address', 'Full Name'].sort());
 
   expect(byLabel.get('Full Name')?.labelConfidence).toBe('structured');
   expect(byLabel.get('Full Name')?.elementType).toBe('input:text');
   expect(byLabel.get('Email Address')?.elementType).toBe('input:email');
   expect(byLabel.get('Cover Letter')?.elementType).toBe('textarea');
-  expect(byLabel.get('Country')?.elementType).toBe('select');
 
   // The plain <div> of descriptive text must not be detected as a field.
   expect(fields.every((f) => f.elementType !== 'div')).toBe(true);
+  // Dropdowns (<select>) are excluded from detection.
+  expect(fields.every((f) => f.elementType !== 'select')).toBe(true);
 });
 
 test('aria-only.html resolves labels from aria-label and aria-labelledby', async ({ page }) => {

@@ -3,6 +3,11 @@ import { onMessage } from '../lib/messaging';
 import { generateAnswers, describeGenerationFailure } from '../lib/orchestrator';
 import { saveFieldMapping } from '../lib/mapping-cache';
 import { getExtractor } from '../lib/extractor';
+import { filterByAI } from '../lib/field-relevance';
+import { fetchGeminiModels } from '../lib/gemini-client';
+import { getSettings, getAvailableModels, saveAvailableModels } from '../lib/storage';
+import { usingMockGenerator } from '../lib/generator';
+import type { ModelChoice } from '../lib/types';
 
 /**
  * Make the toolbar button open the side panel on a single click.
@@ -47,6 +52,17 @@ function bindSidePanelToToolbarIcon(): void {
   }
 }
 
+/**
+ * Query Gemini API for available models and cache them in local storage.
+ */
+async function refreshAvailableModels(explicitApiKey?: string): Promise<ModelChoice[]> {
+  const models = await fetchGeminiModels(explicitApiKey);
+  if (models.length > 0) {
+    await saveAvailableModels(models);
+  }
+  return models;
+}
+
 export default defineBackground(() => {
   // Thin by design: the entrypoint wires messages to handlers, the handlers live
   // in lib/ where they can be tested without a service worker.
@@ -60,6 +76,17 @@ export default defineBackground(() => {
   // so the panel never touches storage directly, and so a save that fails comes
   // back as a rejection the card can show.
   onMessage('SAVE_FIELD_MAPPING', ({ data }) => saveFieldMapping(data));
+
+  // AI-powered relevance filter. Called after the heuristic pass so only
+  // borderline fields reach the model. Best-effort: a failure returns the
+  // input unchanged, so the user still sees something to work with.
+  onMessage('FILTER_RELEVANCE', async ({ data }) => {
+    try {
+      return await filterByAI(data.fields, data.context);
+    } catch {
+      return data.fields;
+    }
+  });
 
   // A CV the user uploaded on the options page. Wired straight to the extractor
   // because there is nothing to orchestrate — one request, one answer — and it
@@ -77,6 +104,45 @@ export default defineBackground(() => {
       throw new Error(describeGenerationFailure(error), { cause: error });
     }
   });
+
+  // Dynamic model discovery: query the Gemini API for available models using the
+  // user's API key, cache to storage, and return the choices.
+  onMessage('FETCH_AVAILABLE_MODELS', async ({ data }) => {
+    try {
+      return await refreshAvailableModels(data?.apiKey);
+    } catch (error) {
+      throw new Error(describeGenerationFailure(error), { cause: error });
+    }
+  });
+
+  // Return cached available models.
+  onMessage('GET_AVAILABLE_MODELS', () => getAvailableModels());
+
+  // One-time startup check: if an API key is saved, refresh real available models
+  // in the background and cache them to local storage.
+  const syncModelsOnStartup = async () => {
+    if (usingMockGenerator() || import.meta.env.MODE === 'test') return;
+    try {
+      const settings = await getSettings();
+      if (settings.apiKey.trim().length > 0) {
+        await refreshAvailableModels(settings.apiKey);
+      }
+    } catch (error) {
+      console.warn('[job-copilot] could not sync models on startup', error);
+    }
+  };
+
+  if (!usingMockGenerator() && import.meta.env.MODE !== 'test') {
+    syncModelsOnStartup();
+  }
+
+  try {
+    chrome.runtime?.onStartup?.addListener(() => {
+      syncModelsOnStartup();
+    });
+  } catch {
+    // Best effort on environments without onStartup
+  }
 
   bindSidePanelToToolbarIcon();
 });

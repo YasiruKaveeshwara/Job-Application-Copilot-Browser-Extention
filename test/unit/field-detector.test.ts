@@ -101,21 +101,36 @@ describe('detectFields — element selection', () => {
     expect(detectFields(document)).toHaveLength(0);
   });
 
-  it('includes textarea, select, contenteditable and role-based fields', () => {
+  it('includes textarea, contenteditable and role:textbox fields', () => {
     setBody(`
       <label for="cover">Cover Letter</label>
       <textarea id="cover"></textarea>
-      <label for="country">Country</label>
-      <select id="country"><option>US</option></select>
       <div contenteditable="true" aria-label="Rich Answer"></div>
-      <div role="combobox" aria-label="Role Combo"></div>
+      <div role="textbox" aria-label="Role Textbox"></div>
     `);
 
     const types = detectFields(document).map((f) => f.elementType);
     expect(types).toContain('textarea');
-    expect(types).toContain('select');
     expect(types).toContain('contenteditable');
-    expect(types).toContain('role:combobox');
+    expect(types).toContain('role:textbox');
+  });
+
+  it('excludes select, combobox, checkbox, radio and switch elements', () => {
+    setBody(`
+      <select id="country" aria-label="Country"><option>US</option></select>
+      <div role="combobox" aria-label="Combo"></div>
+      <div role="listbox" aria-label="List"></div>
+      <input type="checkbox" aria-label="Agree" />
+      <input type="radio" aria-label="Option A" />
+      <div role="checkbox" aria-label="Toggle"></div>
+      <div role="switch" aria-label="Dark Mode"></div>
+      <div role="radiogroup" aria-label="Choices"></div>
+      <input type="text" aria-label="Real Field" />
+    `);
+
+    const fields = detectFields(document);
+    expect(fields).toHaveLength(1);
+    expect(fields[0]!.resolvedLabel).toBe('Real Field');
   });
 
   it('excludes hidden, submit and button inputs, and contenteditable="false"', () => {

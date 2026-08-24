@@ -76,7 +76,7 @@ test.describe('inserting a reviewed answer', () => {
     await expect(page.locator('#react-state-mirror')).toHaveText('');
   });
 
-  test('fills a plain input, a textarea, and a dropdown on an ordinary form', async () => {
+  test('fills a plain input and a textarea on an ordinary form', async () => {
     await page.goto(fixtureUrl('/standard-labels.html'));
 
     expect(
@@ -89,25 +89,6 @@ test.describe('inserting a reviewed answer', () => {
       await insertIntoActiveTab(context, await refFor(context, 'Cover Letter'), letter),
     ).toEqual({ success: true });
     await expect(page.locator('#cover-letter')).toHaveValue(letter);
-
-    // A dropdown can only hold one of its own options, so the draft is matched
-    // against them rather than written in as text.
-    expect(
-      await insertIntoActiveTab(context, await refFor(context, 'Country'), 'Sri Lanka'),
-    ).toEqual({ success: true });
-    await expect(page.locator('#country')).toHaveValue('lk');
-  });
-
-  test('refuses a dropdown option the page does not offer, leaving it untouched', async () => {
-    await page.goto(fixtureUrl('/standard-labels.html'));
-    const ref = await refFor(context, 'Country');
-    await page.selectOption('#country', 'us');
-
-    const result = await insertIntoActiveTab(context, ref, 'Atlantis');
-
-    expect(result.success).toBe(false);
-    expect(result.error).toMatch(/not one of this dropdown's options/);
-    await expect(page.locator('#country')).toHaveValue('us');
   });
 
   test('reaches a field inside an open shadow root', async () => {

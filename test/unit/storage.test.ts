@@ -8,10 +8,13 @@ import {
   getSettings,
   saveSettings,
   defaultSettings,
+  getAvailableModels,
+  saveAvailableModels,
+  DEFAULT_AVAILABLE_MODELS,
   DEFAULT_MODEL_ID,
   CHEAP_MODEL_ID,
 } from '../../lib/storage';
-import type { ProfileData } from '../../lib/types';
+import type { ProfileData, ModelChoice } from '../../lib/types';
 
 function sampleProfile(): ProfileData {
   return {
@@ -138,5 +141,27 @@ describe('settings storage', () => {
     await saveProfile(sampleProfile());
     expect((await getSettings()).apiKey).toBe('AIza-example');
     expect((await getProfile()).personal.name).toBe('Ada Lovelace');
+  });
+});
+
+describe('available models storage', () => {
+  beforeEach(() => {
+    fakeBrowser.reset();
+  });
+
+  it('returns default models on a fresh install', async () => {
+    const models = await getAvailableModels();
+    expect(models).toEqual(DEFAULT_AVAILABLE_MODELS);
+    expect(models.length).toBeGreaterThan(0);
+    expect(models.some((m) => m.id === DEFAULT_MODEL_ID)).toBe(true);
+  });
+
+  it('saves then reads back custom available models', async () => {
+    const customModels: ModelChoice[] = [
+      { id: 'gemini-custom-1', label: 'Custom Gemini 1' },
+      { id: 'gemini-custom-2', label: 'Custom Gemini 2' },
+    ];
+    await saveAvailableModels(customModels);
+    expect(await getAvailableModels()).toEqual(customModels);
   });
 });

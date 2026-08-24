@@ -2,6 +2,7 @@ import { useCallback, useReducer, useState } from 'react';
 import { browser } from '#imports';
 import { sendMessage } from '@/lib/messaging';
 import type { ScanResult } from '@/lib/messaging';
+import { filterByHeuristic } from '@/lib/field-relevance';
 import { log } from '@/lib/log';
 import {
   countNeedingReview,
@@ -119,18 +120,73 @@ export default function App() {
         return;
       }
     }
-    dispatch({ type: 'scan-succeeded', result });
 
-    if (result.fields.length === 0) {
-      log('info', 'scan', 'No fields detected on this page.');
+    // --- Relevance filtering (3 layers) ---
+    // Layer 1 (hard element-type) already ran in the content script's detector.
+    const rawCount = result.fields.length;
+
+    // Layer 2: fast heuristic — drop obvious non-application fields by label.
+    const heuristicFiltered = filterByHeuristic(result.fields);
+    const heuristicDropped = rawCount - heuristicFiltered.length;
+    if (heuristicDropped > 0) {
+      log(
+        'info',
+        'filter',
+        `Heuristic filter removed ${heuristicDropped} non-application field(s) (${rawCount} → ${heuristicFiltered.length}).`,
+      );
+    }
+
+    // Layer 3: AI classification — ask Gemini which surviving fields are application-relevant.
+    let relevantFields = heuristicFiltered;
+    if (heuristicFiltered.length > 0) {
+      try {
+        log('info', 'filter', `Asking AI to classify ${heuristicFiltered.length} field(s)…`);
+        relevantFields = await sendMessage('FILTER_RELEVANCE', {
+          fields: heuristicFiltered,
+          context: result.context,
+        });
+        const aiDropped = heuristicFiltered.length - relevantFields.length;
+        if (aiDropped > 0) {
+          log(
+            'info',
+            'filter',
+            `AI filter removed ${aiDropped} more field(s) (${heuristicFiltered.length} → ${relevantFields.length}).`,
+          );
+        }
+      } catch (error) {
+        // AI layer is best-effort; on failure, use heuristic result.
+        log(
+          'warn',
+          'filter',
+          `AI relevance filter failed, using heuristic result: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        relevantFields = heuristicFiltered;
+      }
+    }
+
+    // Replace the scan result with filtered fields
+    const filteredResult: ScanResult = { ...result, fields: relevantFields };
+    const totalDropped = rawCount - relevantFields.length;
+    if (totalDropped > 0) {
+      log(
+        'info',
+        'filter',
+        `Total: ${totalDropped} of ${rawCount} field(s) filtered out. Showing ${relevantFields.length}.`,
+      );
+    }
+
+    dispatch({ type: 'scan-succeeded', result: filteredResult });
+
+    if (filteredResult.fields.length === 0) {
+      log('info', 'scan', 'No relevant application fields found on this page.');
       return;
     }
 
-    log('info', 'generate', `Requesting drafts for ${result.fields.length} field(s)…`);
+    log('info', 'generate', `Requesting drafts for ${filteredResult.fields.length} field(s)…`);
     try {
       const answers = await sendMessage('REQUEST_GENERATION', {
-        fields: result.fields,
-        context: result.context,
+        fields: filteredResult.fields,
+        context: filteredResult.context,
       });
       log('info', 'generate', `Generation succeeded: ${answers.length} answer(s) returned.`);
       dispatch({ type: 'generation-succeeded', answers });

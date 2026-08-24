@@ -49,7 +49,7 @@ test.describe('the loaded extension', () => {
 
     const byLabel = new Map(result.fields.map((f) => [f.resolvedLabel, f]));
     expect([...byLabel.keys()].sort()).toEqual(
-      ['Country', 'Cover Letter', 'Email Address', 'Full Name'].sort(),
+      ['Cover Letter', 'Email Address', 'Full Name'].sort(),
     );
     expect(byLabel.get('Cover Letter')?.elementType).toBe('textarea');
     expect(byLabel.get('Full Name')?.labelConfidence).toBe('structured');
@@ -101,10 +101,10 @@ test.describe('the loaded extension', () => {
       await page.bringToFront();
       await panel.getByRole('button', { name: 'Scan this page' }).click();
 
-      for (const label of ['Full Name', 'Email Address', 'Cover Letter', 'Country']) {
+      for (const label of ['Full Name', 'Email Address', 'Cover Letter']) {
         await expect(panel.getByRole('heading', { name: label })).toBeVisible();
       }
-      await expect(panel.getByText('4 fields detected')).toBeVisible();
+      await expect(panel.getByText('3 fields detected')).toBeVisible();
 
       // No API key is configured in this profile, so generation fails — and the
       // panel says why while keeping the fields it detected.
@@ -113,8 +113,8 @@ test.describe('the loaded extension', () => {
 
       // Every card came back without a draft, so every card is flagged rather
       // than presented as if it were ready to send.
-      await expect(panel.getByText('Needs review')).toHaveCount(4);
-      await expect(panel.getByText('No draft came back for this field.')).toHaveCount(4);
+      await expect(panel.getByText('Needs review')).toHaveCount(3);
+      await expect(panel.getByText('No draft came back for this field.')).toHaveCount(3);
 
       const coverLetter = panel
         .locator('li', { has: panel.getByRole('heading', { name: 'Cover Letter' }) })
