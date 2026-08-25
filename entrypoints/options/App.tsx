@@ -175,12 +175,30 @@ export default function App() {
         />
         <CachedDraftsSection />
 
-        <div className="flex justify-end pt-4 pb-16">
+        <div className="flex justify-end pt-4 pb-8">
           <Button variant="primary" onClick={handleSave}>
             {status === 'saving' ? 'Saving…' : 'Save Changes'}
           </Button>
         </div>
       </main>
+
+      {/* Creator Footer */}
+      <footer className="border-t border-slate-200/60 bg-white/60 py-5 text-center backdrop-blur-sm">
+        <p className="text-[11px] font-medium text-slate-400">
+          Built with <span className="inline-block animate-pulse text-red-400">♥</span> by{' '}
+          <a
+            href="https://github.com/YasiruKaveeshwara"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-indigo-500 transition-colors hover:text-indigo-700"
+          >
+            Yasiru Kaveeshwara
+          </a>
+        </p>
+        <p className="mt-0.5 text-[10px] text-slate-300">
+          © {new Date().getFullYear()} All rights reserved
+        </p>
+      </footer>
     </div>
   );
 }

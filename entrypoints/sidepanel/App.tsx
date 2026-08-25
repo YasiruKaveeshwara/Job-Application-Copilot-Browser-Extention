@@ -596,11 +596,22 @@ export default function App() {
       </main>
 
       {/* Footer Status */}
-      <footer className="border-t border-slate-200/80 bg-white/90 p-2.5 text-center text-[10.5px] font-medium text-slate-500 backdrop-blur-md">
-        <span className="inline-flex items-center gap-1.5">
+      <footer className="border-t border-slate-200/80 bg-white/90 px-2.5 py-2 text-center backdrop-blur-md">
+        <span className="inline-flex items-center gap-1.5 text-[10.5px] font-medium text-slate-500">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           Drafts only • No auto-submit • Local-only key
         </span>
+        <p className="mt-1 text-[9.5px] text-slate-400">
+          by{' '}
+          <a
+            href="https://github.com/YasiruKaveeshwara"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-indigo-400 hover:text-indigo-600 transition-colors"
+          >
+            Yasiru Kaveeshwara
+          </a>
+        </p>
       </footer>
     </div>
   );
