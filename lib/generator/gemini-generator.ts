@@ -7,19 +7,16 @@ import { GeneratorError } from './types';
 // Google Gemini, called directly from the background service worker with a
 // bring-your-own key.
 //
-// Substituted for the build guide's Anthropic generator at the user's request.
 // The URL, auth header, and HTTP/response handling live in lib/gemini-client.ts,
 // shared with the CV extractor; this file is only "what to ask for and what to do
 // with the answer".
 //
-// Two differences from the Anthropic shape the guide describes, both structural
-// rather than optional:
-//   * The model ID is a path segment, not a body field, so the request assertion
-//     is on the URL rather than the body.
-//   * There is no `anthropic-dangerous-direct-browser-access` equivalent. Google
-//     needs no client-side opt-in header; the cross-origin call works because MV3
-//     grants the service worker the host permissions declared in the manifest
-//     (`<all_urls>` covers this endpoint).
+// Key implementation details:
+//   * The model ID is a path segment in the URL, not a body field, so request
+//     assertions check the URL rather than the body.
+//   * No special client-side opt-in header is needed. The cross-origin call works
+//     because MV3 grants the service worker the host permissions declared in the
+//     manifest (`<all_urls>` covers this endpoint).
 
 export { GEMINI_MODELS_BASE, generateContentUrl } from '../gemini-client';
 

@@ -3,6 +3,7 @@
   "description": "AI copilot that detects application form fields and drafts answers from your profile. No auto-submit.",
   "private": true,
   "version": "0.1.0",
+  "author": "Yasiru Kaveeshwara <kaveeshwaray@gmail.com>",
   "type": "module",
   "scripts": {
     "dev": "wxt",

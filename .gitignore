@@ -12,7 +12,7 @@ web-ext.config.ts
 .env
 .env.*
 
-# Claude Code machine-local settings (contains local permission grants)
+# Machine-local editor/tooling settings (contain local permission grants)
 .claude/settings.local.json
 
 # Test artifacts

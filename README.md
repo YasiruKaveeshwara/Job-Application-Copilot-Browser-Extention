@@ -351,3 +351,13 @@ test-fixtures/           # Static HTML pages served for E2E tests
 docs/
   manual-validation.md   # Phase 17 real-world validation log
 ```
+
+## Creator
+
+**Yasiru Kaveeshwara**
+📧 [kaveeshwaray@gmail.com](mailto:kaveeshwaray@gmail.com)
+🔗 [github.com/YasiruKaveeshwara](https://github.com/YasiruKaveeshwara)
+
+---
+
+© 2026 Yasiru Kaveeshwara. All rights reserved.
