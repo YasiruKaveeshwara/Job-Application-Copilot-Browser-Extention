@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   canSaveCorrection,
+  canReviseAnswer,
   correctionBlockedReason,
   countNeedingReview,
   describeBackgroundFailure,
@@ -74,7 +75,9 @@ function cardOf(overrides: Partial<FieldCard> = {}): FieldCard {
     labelConfidence: 'structured',
     elementType: 'textarea',
     domRef: 'jac-1',
+    surroundingText: '',
     classifiedType: 'cover-letter',
+    answerSource: 'generated',
     confidence: 'high',
     draft: 'A draft.',
     edited: false,
@@ -176,6 +179,31 @@ describe('panel phases', () => {
     expect(state.cards).toEqual([]);
     expect(state.error).toBeNull();
     expect(state.domain).toBe('');
+  });
+});
+
+describe('answer revision eligibility', () => {
+  it('allows revising an AI-drafted answer', () => {
+    expect(canReviseAnswer(cardOf())).toBe(true);
+  });
+
+  it.each(['name', 'email', 'phone', 'address', 'location'])(
+    'does not allow revising static %s fields',
+    (classifiedType) => {
+      expect(canReviseAnswer(cardOf({ classifiedType }))).toBe(false);
+    },
+  );
+
+  it('does not allow revising deterministic profile matches', () => {
+    expect(canReviseAnswer(cardOf({ answerSource: 'profile' }))).toBe(false);
+  });
+
+  it('does not offer revision for static personal-detail labels even if an AI classified them', () => {
+    expect(canReviseAnswer(cardOf({ label: 'Name', classifiedType: 'other' }))).toBe(false);
+  });
+
+  it('does not offer revision before an answer exists', () => {
+    expect(canReviseAnswer(cardOf({ confidence: null }))).toBe(false);
   });
 });
 

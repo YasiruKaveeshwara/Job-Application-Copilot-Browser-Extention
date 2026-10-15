@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { generateAnswers, describeGenerationFailure } from '../../lib/orchestrator';
+import { generateAnswers, reviseAnswer, describeGenerationFailure } from '../../lib/orchestrator';
 import { MockGenerator } from '../../lib/generator/mock-generator';
 import { GeneratorError } from '../../lib/generator/types';
 import type { BuiltPrompt, Generator } from '../../lib/generator/types';
 import { MOCK_GENERATOR_FLAG, usingMockGenerator } from '../../lib/generator';
 import { MOCK_EXTRACTED_CV } from '../../lib/extractor/mock-extractor';
+import { DEFAULT_PROMPT_SETTINGS } from '../../lib/prompt-settings';
 import { getProfile, saveProfile, saveSettings, emptyProfile } from '../../lib/storage';
 import { getFieldMappings, saveFieldMapping } from '../../lib/mapping-cache';
 import { sendMessage } from '../../lib/messaging';
@@ -115,6 +116,27 @@ describe('generateAnswers', () => {
     const { generator, prompts } = capturing([]);
     await expect(generateAnswers({ fields: [], context }, generator)).resolves.toEqual([]);
     // No fields means no prompt and no spend.
+    expect(prompts).toHaveLength(0);
+  });
+
+  it('marks deterministic profile answers so the UI can keep them non-revisable', async () => {
+    const empty = emptyProfile();
+    await saveProfile({
+      ...empty,
+      personal: { ...empty.personal, name: 'Ada Lovelace' },
+    });
+    const { generator, prompts } = capturing([]);
+
+    const answers = await generateAnswers(
+      { fields: [field({ resolvedLabel: 'Full Name' })], context },
+      generator,
+    );
+
+    expect(answers[0]).toMatchObject({
+      classifiedType: 'name',
+      draftAnswer: 'Ada Lovelace',
+      source: 'profile',
+    });
     expect(prompts).toHaveLength(0);
   });
 
@@ -362,6 +384,86 @@ describe('generateAnswers', () => {
   });
 });
 
+describe('reviseAnswer', () => {
+  beforeEach(() => {
+    installExtensionGlobals();
+    fakeBrowser.reset();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('sends only the question, current answer, and new instruction to the revision prompt', async () => {
+    await saveProfile(profile());
+    const revisedText = 'A shorter answer focused on mobile experience.';
+    const { generator, prompts } = capturing([{ ...answerFor('f0'), draftAnswer: revisedText }]);
+
+    const result = await reviseAnswer(
+      {
+        tempId: 'f0',
+        question: 'Describe your React Native experience',
+        elementType: 'textarea',
+        previousAnswer: 'The previous drafted answer.',
+        instruction: 'Make it shorter and focus on mobile experience.',
+      },
+      generator,
+    );
+
+    expect(result).toBe(revisedText);
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]!.system).toBe(DEFAULT_PROMPT_SETTINGS.answerRevisionSystem);
+    expect(prompts[0]!.user).toContain('Describe your React Native experience');
+    expect(prompts[0]!.user).toContain('The previous drafted answer.');
+    expect(prompts[0]!.user).toContain('Make it shorter and focus on mobile experience.');
+    expect(prompts[0]!.user).not.toContain(context.rawText);
+    expect(prompts[0]!.user).not.toContain('Trailmark');
+    expect(prompts[0]!.user).not.toContain(DEFAULT_PROMPT_SETTINGS.answerDraftingSystem);
+    expect(prompts[0]!.fields).toEqual([
+      {
+        tempId: 'f0',
+        resolvedLabel: 'Describe your React Native experience',
+        elementType: 'textarea',
+      },
+    ]);
+  });
+
+  it('rejects a response that does not revise the requested field', async () => {
+    const { generator } = capturing([answerFor('another-field')]);
+    await expect(
+      reviseAnswer(
+        {
+          tempId: 'f0',
+          question: 'Why this company?',
+          elementType: 'textarea',
+          previousAnswer: 'Existing answer.',
+          instruction: 'Make it more concise.',
+        },
+        generator,
+      ),
+    ).rejects.toThrow(/did not return a revised answer/);
+  });
+
+  it('requires a non-empty revision instruction before calling the model', async () => {
+    const { generator, prompts } = capturing([]);
+    await expect(
+      reviseAnswer(
+        {
+          tempId: 'f0',
+          question: 'Why this company?',
+          elementType: 'textarea',
+          previousAnswer: 'Existing answer.',
+          instruction: ' ',
+        },
+        generator,
+      ),
+    ).rejects.toThrow(/Add an instruction/);
+    expect(prompts).toHaveLength(0);
+  });
+});
+
 describe('describeGenerationFailure', () => {
   it('explains each HTTP status the user can act on', () => {
     const http = (status: number) =>
@@ -452,6 +554,23 @@ describe('background REQUEST_GENERATION handler', () => {
       expect(['high', 'low']).toContain(answer.confidence);
       expect(typeof answer.draftAnswer).toBe('string');
     }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('answers a REVISE_ANSWER message with one independent mock generation', async () => {
+    vi.stubEnv(MOCK_GENERATOR_FLAG, 'true');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const revised = await sendMessage('REVISE_ANSWER', {
+      tempId: 'f0',
+      question: 'Why do you want to join our company?',
+      elementType: 'textarea',
+      previousAnswer: 'The first answer.',
+      instruction: 'Make it shorter.',
+    });
+
+    expect(revised).toContain('Why do you want to join our company?');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

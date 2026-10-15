@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { FieldCard } from '../state';
-import { canSaveCorrection, correctionBlockedReason, reviewReasons } from '../state';
+import {
+  canReviseAnswer,
+  canSaveCorrection,
+  correctionBlockedReason,
+  reviewReasons,
+} from '../state';
 import { Badge, Banner, PanelButton } from './ui';
 
 const TEXTAREA_CLASSES =
@@ -120,6 +124,7 @@ export function FieldCardView({
   pending,
   onDraftChange,
   onInsert,
+  onRevise,
   onCorrectionChange,
   onSaveCorrection,
 }: {
@@ -129,15 +134,21 @@ export function FieldCardView({
   pending: boolean;
   onDraftChange: (draft: string) => void;
   onInsert: () => void;
+  onRevise: (instruction: string) => Promise<string>;
   onCorrectionChange: (value: string) => void;
   onSaveCorrection: () => void;
 }) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [revisionOpen, setRevisionOpen] = useState(false);
+  const [revisionPrompt, setRevisionPrompt] = useState('');
+  const [revisionError, setRevisionError] = useState<string | null>(null);
+  const [revising, setRevising] = useState(false);
   useEffect(() => setCopyState('idle'), [card.draft]);
 
   const reasons = pending ? [] : reviewReasons(card);
   const flagged = reasons.length > 0;
   const isInserted = card.insert.phase === 'inserted';
+  const canRevise = !pending && canReviseAnswer(card);
 
   const copy = useCallback(async () => {
     try {
@@ -148,6 +159,26 @@ export function FieldCardView({
       setCopyState('failed');
     }
   }, [card.draft]);
+
+  const submitRevision = async () => {
+    const instruction = revisionPrompt.trim();
+    if (instruction.length === 0 || revising) return;
+
+    setRevising(true);
+    setRevisionError(null);
+    try {
+      const revisedAnswer = await onRevise(instruction);
+      onDraftChange(revisedAnswer);
+      setRevisionPrompt('');
+      setRevisionOpen(false);
+    } catch (error) {
+      setRevisionError(
+        error instanceof Error ? error.message : 'Could not revise this answer. Try again.',
+      );
+    } finally {
+      setRevising(false);
+    }
+  };
 
   return (
     <li
@@ -264,7 +295,7 @@ export function FieldCardView({
             <PanelButton
               variant="primary"
               onClick={onInsert}
-              disabled={card.draft.length === 0 || card.insert.phase === 'inserting'}
+              disabled={card.draft.length === 0 || card.insert.phase === 'inserting' || revising}
             >
               {card.insert.phase === 'inserting' ? (
                 <span className="flex items-center gap-1">
@@ -298,10 +329,65 @@ export function FieldCardView({
                 </span>
               )}
             </PanelButton>
+            {canRevise && (
+              <PanelButton
+                onClick={() => {
+                  setRevisionError(null);
+                  setRevisionOpen((open) => !open);
+                }}
+                disabled={revising}
+              >
+                Resend
+              </PanelButton>
+            )}
           </div>
 
           <InsertStatus card={card} />
         </div>
+
+        {canRevise && revisionOpen && (
+          <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/50 p-2.5">
+            <label
+              htmlFor={`revision-instruction-${card.tempId}`}
+              className="mb-1.5 block text-[10.5px] font-semibold text-slate-700"
+            >
+              How should AI change this answer?
+            </label>
+            <textarea
+              id={`revision-instruction-${card.tempId}`}
+              rows={2}
+              value={revisionPrompt}
+              onChange={(event) => setRevisionPrompt(event.target.value)}
+              placeholder="e.g. Make it shorter and emphasize my mobile experience"
+              disabled={revising}
+              className={TEXTAREA_CLASSES}
+            />
+            {revisionError !== null && (
+              <p role="alert" className="mt-1.5 text-[10.5px] font-medium text-red-600">
+                {revisionError}
+              </p>
+            )}
+            <div className="mt-2 flex items-center gap-1.5">
+              <PanelButton
+                variant="primary"
+                onClick={() => void submitRevision()}
+                disabled={revisionPrompt.trim().length === 0 || revising}
+              >
+                {revising ? 'Sending…' : 'Send to AI'}
+              </PanelButton>
+              <PanelButton
+                onClick={() => {
+                  setRevisionOpen(false);
+                  setRevisionPrompt('');
+                  setRevisionError(null);
+                }}
+                disabled={revising}
+              >
+                Cancel
+              </PanelButton>
+            </div>
+          </div>
+        )}
 
         {copyState === 'failed' && (
           <p className="mt-1.5 text-[10px] text-red-500">

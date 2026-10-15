@@ -93,6 +93,12 @@ export async function getModelCandidates(preferredModelId: string): Promise<stri
     // Best effort if storage read fails
   }
 
+  // Ensure high-quota, fast Flash models are included as fallback in case
+  // the user's selected model is rate-limited (e.g., Pro models with 2 RPM quota).
+  add('gemini-2.5-flash');
+  add('gemini-2.0-flash');
+  add('gemini-1.5-flash');
+
   return candidates;
 }
 
@@ -347,8 +353,9 @@ export async function fetchGeminiModels(explicitApiKey?: string): Promise<ModelC
   };
   const capabilityRank = (model: RawGeminiModel): number => {
     const description = `${model.displayName ?? ''} ${model.name}`.toLowerCase();
-    if (/\b(ultra|pro|reasoning|thinking)\b/.test(description)) return 3;
-    if (/\b(flash|lite|nano)\b/.test(description)) return 1;
+    // Prioritize Flash / Lite models for high throughput, low latency, and 15 RPM quota (vs 2 RPM for Pro)
+    if (/\b(flash|lite)\b/.test(description) && !/\b(nano)\b/.test(description)) return 3;
+    if (/\b(ultra|pro|reasoning|thinking)\b/.test(description)) return 1;
     return 2;
   };
   const modelVersion = (model: RawGeminiModel): number[] => {

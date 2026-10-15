@@ -1,6 +1,6 @@
 import { defineBackground } from '#imports';
 import { onMessage } from '../lib/messaging';
-import { generateAnswers, describeGenerationFailure } from '../lib/orchestrator';
+import { generateAnswers, reviseAnswer, describeGenerationFailure } from '../lib/orchestrator';
 import { saveFieldMapping } from '../lib/mapping-cache';
 import { getExtractor } from '../lib/extractor';
 import { filterByAI } from '../lib/field-relevance';
@@ -69,6 +69,10 @@ export default defineBackground(() => {
   // rejected promise, so a throw here becomes a caught error in the panel rather
   // than an unhandled rejection in the worker.
   onMessage('REQUEST_GENERATION', ({ data }) => generateAnswers(data));
+
+  // Revise one answer with only its detected question, current text, and the
+  // user's new instruction. The original generation context is not resent.
+  onMessage('REVISE_ANSWER', ({ data }) => reviseAnswer(data));
 
   // A correction the user typed on a card. Handled here rather than in the panel
   // so the panel never touches storage directly, and so a save that fails comes

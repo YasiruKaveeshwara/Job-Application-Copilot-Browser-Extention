@@ -14,7 +14,7 @@ import {
   savePromptSettings,
 } from '../../lib/storage';
 import type { ProfileData, ModelChoice } from '../../lib/types';
-import { DEFAULT_PROMPT_SETTINGS } from '../../lib/prompt-settings';
+import { DEFAULT_PROMPT_SETTINGS, PROMPT_FIELDS } from '../../lib/prompt-settings';
 
 function sampleProfile(): ProfileData {
   return {
@@ -173,10 +173,20 @@ describe('editable prompt storage', () => {
     expect(await getPromptSettings()).toEqual(DEFAULT_PROMPT_SETTINGS);
   });
 
+  it('exposes the answer revision seed in the editable prompt catalog', () => {
+    expect(PROMPT_FIELDS).toContainEqual(
+      expect.objectContaining({
+        id: 'answerRevisionSystem',
+        section: 'Answer revision',
+      }),
+    );
+  });
+
   it('persists all edited prompt text', async () => {
     const edited = {
       ...DEFAULT_PROMPT_SETTINGS,
       answerDraftingSystem: 'My custom answer instructions',
+      answerRevisionSystem: 'My custom answer revision instructions',
     };
     await savePromptSettings(edited);
     expect(await getPromptSettings()).toEqual(edited);

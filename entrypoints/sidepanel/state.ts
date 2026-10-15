@@ -33,8 +33,10 @@ export interface FieldCard {
   labelConfidence: DetectedField['labelConfidence'];
   elementType: string;
   domRef: string;
+  surroundingText: string;
   /** The generator's classification, or '' before/without an answer. */
   classifiedType: string;
+  answerSource: 'profile' | 'generated' | null;
   /** null means no answer came back for this field at all. */
   confidence: 'high' | 'low' | null;
   /** Contents of the editable area: the draft, or what the user typed over it. */
@@ -85,7 +87,9 @@ function toCard(field: DetectedField): FieldCard {
     labelConfidence: field.labelConfidence,
     elementType: field.elementType,
     domRef: field.domRef,
+    surroundingText: field.surroundingText,
     classifiedType: '',
+    answerSource: null,
     confidence: null,
     // Pre-filled with whatever the page already had, so inserting is never
     // destructive by accident before a draft arrives.
@@ -102,6 +106,7 @@ function applyAnswer(card: FieldCard, answer: GeneratedAnswer | undefined): Fiel
     ...card,
     classifiedType: answer.classifiedType,
     confidence: answer.confidence,
+    answerSource: answer.source ?? 'generated',
     // If the user started typing while generation was still running, their text
     // wins: an arriving draft must never overwrite something they wrote.
     draft: card.edited ? card.draft : answer.draftAnswer,
@@ -240,6 +245,45 @@ export function needsReview(card: FieldCard): boolean {
 
 export function countNeedingReview(cards: FieldCard[]): number {
   return cards.filter(needsReview).length;
+}
+
+const STATIC_ANSWER_TYPES = new Set([
+  'address',
+  'city',
+  'company',
+  'country',
+  'date-of-birth',
+  'degree',
+  'education',
+  'email',
+  'github',
+  'linkedin',
+  'location',
+  'name',
+  'phone',
+  'postal-code',
+  'state',
+  'university',
+  'url',
+  'website',
+  'zip-code',
+]);
+
+const STATIC_ANSWER_LABEL =
+  /\b(name|address|email|e-mail|first name|last name|full name|phone|telephone|mobile|postal code|zip code|date of birth|birth date|linkedin|github|portfolio|website|university|degree)\b/i;
+
+/** Static profile facts should remain verbatim and do not need AI revision. */
+export function canReviseAnswer(card: FieldCard): boolean {
+  if (
+    card.answerSource === 'profile' ||
+    card.confidence === null ||
+    card.draft.trim().length === 0
+  ) {
+    return false;
+  }
+
+  if (STATIC_ANSWER_TYPES.has(card.classifiedType.trim().toLowerCase())) return false;
+  return !STATIC_ANSWER_LABEL.test(card.label);
 }
 
 /**

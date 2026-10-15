@@ -282,14 +282,21 @@ describe('GeminiExtractor response handling', () => {
   it('aborts a model request that never responds instead of leaving extraction loading', async () => {
     vi.useFakeTimers();
     try {
-      let markFetchStarted = () => {};
-      const fetchStarted = new Promise<void>((resolve) => {
-        markFetchStarted = resolve;
-      });
+      let fetchStarts = 0;
+      const startWaiters = new Map<number, () => void>();
+      const waitForFetchStart = (count: number) =>
+        new Promise<void>((resolve) => {
+          if (fetchStarts >= count) {
+            resolve();
+          } else {
+            startWaiters.set(count, resolve);
+          }
+        });
       fetchMock.mockImplementation(
         (_input: RequestInfo | URL, init?: RequestInit) =>
           new Promise<Response>((_resolve, reject) => {
-            markFetchStarted();
+            fetchStarts += 1;
+            startWaiters.get(fetchStarts)?.();
             init?.signal?.addEventListener(
               'abort',
               () => reject(new DOMException('The request was aborted.', 'AbortError')),
@@ -298,15 +305,18 @@ describe('GeminiExtractor response handling', () => {
           }),
       );
 
+      await saveAvailableModels([]);
       const pending = new GeminiExtractor().extract(PDF_BASE64);
       const capturedError = captureError(pending);
-      await fetchStarted;
-      await vi.advanceTimersByTimeAsync(GEMINI_REQUEST_TIMEOUT_MS);
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        await waitForFetchStart(attempt);
+        await vi.advanceTimersByTimeAsync(GEMINI_REQUEST_TIMEOUT_MS);
+      }
       const error = await capturedError;
 
       expect(error.kind).toBe('network');
       expect(error.message).toContain('timed out');
-      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     } finally {
       vi.useRealTimers();
     }

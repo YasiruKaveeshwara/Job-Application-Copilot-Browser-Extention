@@ -232,6 +232,29 @@ export default function App() {
     }
   }, []);
 
+  const revise = useCallback(async (card: FieldCard, instruction: string) => {
+    const question = [card.label.trim(), card.surroundingText.trim()]
+      .filter((part, index, parts) => part.length > 0 && parts.indexOf(part) === index)
+      .join('\n');
+    log('info', 'generate', `Requesting an answer revision for "${card.label}".`);
+    try {
+      const revisedAnswer = await sendMessage('REVISE_ANSWER', {
+        tempId: card.tempId,
+        question,
+        elementType: card.elementType,
+        previousAnswer: card.draft,
+        instruction,
+      });
+      log('info', 'generate', `Answer revision succeeded for "${card.label}".`);
+      return revisedAnswer;
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : String(error);
+      const friendly = describeBackgroundFailure(error);
+      log('error', 'generate', `REVISE_ANSWER failed: ${raw}`, error);
+      throw new Error(friendly, { cause: error });
+    }
+  }, []);
+
   const saveCorrection = useCallback(
     async (card: FieldCard) => {
       dispatch({ type: 'correction-save-started', tempId: card.tempId });
@@ -666,6 +689,7 @@ export default function App() {
                   dispatch({ type: 'draft-changed', tempId: card.tempId, draft })
                 }
                 onInsert={() => void insert(card)}
+                onRevise={(instruction) => revise(card, instruction)}
                 onCorrectionChange={(value) =>
                   dispatch({ type: 'correction-changed', tempId: card.tempId, value })
                 }

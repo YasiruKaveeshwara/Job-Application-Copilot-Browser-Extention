@@ -11,10 +11,11 @@ edit, and insert every answer yourself.
 - **3-layer relevance filtering** — uses hard type filters (ignoring radio/checkbox/dropdowns/search boxes), regex heuristics, and an AI relevance classifier to ensure only genuine job application text fields are shown.
 - **Instant zero-cost profile matching** — deterministic direct matching for static fields (Full Name, First/Last Name, Email, Phone, LinkedIn, GitHub, Portfolio, University, Degree, Company, Role) with zero latency and zero token spend.
 - **AI semantic standard answer matching & paraphrasing** — saved standard answer templates (e.g. cover letters, motivation) are semantically matched to relevant fields and paraphrased to match the specific job title and company context with clean multi-paragraph letter formatting.
+- **Per-answer AI revision** — use **Resend** beside an AI draft to give it a one-off change instruction. Only that field's question, current answer, and new instruction are sent for the revision; deterministic profile details such as name and phone stay verbatim.
 - **Dynamic model discovery** — queries the Google Gemini API after a new API key is saved and on extension startup to discover the text generation models available to that key. The first choice is ranked from API-returned model family, version, and token-limit metadata; no model IDs are bundled as defaults.
 - **Persistent model selection** — newly discovered keys select the highest-ranked available model; a model you choose is saved locally and remains selected until you choose another model or save a different API key.
 - **Automatic model failover & recovery** — if a model rejects a request (including PDF support), is rate-limited, or does not respond, the extension tries up to two other API-discovered models. Each attempt times out after 30 seconds; your saved selection is not changed.
-- **Editable AI prompts** — edit and save the seeded instructions for answer drafting, saved-answer matching, field relevance, and CV extraction from **Settings → Prompts**. Prompt text is stored locally; restore the original seeds at any time.
+- **Editable AI prompts** — edit and save the seeded instructions for answer drafting and revision, saved-answer matching, field relevance, and CV extraction from **Settings → Prompts**. Prompt text is stored locally; restore the original seeds at any time.
 - **Profile-driven drafts** — retrieves the most relevant fragments from your work history, projects, and skills for open-ended questions before calling the model.
 - **CV import with automatic profile updates** — upload a PDF CV and the model reads profile data from it. Extracted personal, education, work history, and skills are saved automatically; project details wait for your solo/team choice. See [Importing a CV](#importing-a-cv).
 - **Bring-your-own-key** — your Gemini API key lives in local extension storage only. It is never synced to your browser account.
@@ -192,6 +193,12 @@ stored in local extension storage and used on subsequent model requests. Use
 **Reset defaults** to restore the built-in seed instructions. The answer drafting
 reminder supports `{count}` and `{plural}` placeholders, and the saved correction
 instruction supports `{correction}`.
+
+For an individual AI-generated answer, select **Resend**, enter the changes you
+want, and choose **Send to AI**. The revision request includes only that field's
+question, its current answer, your new instruction, and the separate answer-revision
+system prompt. It does not resend the original full-page generation prompt or
+profile context.
 
 ## What ships in a build
 

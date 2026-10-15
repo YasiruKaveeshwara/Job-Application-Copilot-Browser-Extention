@@ -78,6 +78,8 @@ export interface GeneratedAnswer {
   classifiedType: string;
   confidence: 'high' | 'low';
   draftAnswer: string;
+  /** Set only for deterministic profile matches, which are not AI-revisable. */
+  source?: 'profile';
 }
 
 /**

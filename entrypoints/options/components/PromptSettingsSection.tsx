@@ -14,7 +14,7 @@ export function PromptSettingsSection({
   return (
     <Section
       title="AI Prompts"
-      description="Customize the instructions used for answer drafting, saved-answer matching, field filtering, and CV import. Click Save Changes to store your edits locally."
+      description="Customize the instructions used for answer drafting and revision, saved-answer matching, field filtering, and CV import. Click Save Changes to store your edits locally."
       badge="Editable"
       icon={
         <svg

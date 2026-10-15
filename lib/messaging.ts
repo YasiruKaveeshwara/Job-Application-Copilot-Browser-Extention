@@ -33,6 +33,15 @@ export interface GenerationRequest {
   context: JobContext;
 }
 
+/** One answer revision. Deliberately excludes profile and full-page context. */
+export interface ReviseAnswerRequest {
+  tempId: string;
+  question: string;
+  elementType: string;
+  previousAnswer: string;
+  instruction: string;
+}
+
 export interface InsertFieldRequest {
   domRef: string;
   finalText: string;
@@ -75,6 +84,8 @@ export interface ProtocolMap {
   TRIGGER_SCAN(): ScanResult;
   /** Side panel → background. Retrieve, prompt, generate, validate. */
   REQUEST_GENERATION(data: GenerationRequest): GeneratedAnswer[];
+  /** Side panel → background. Revise one answer without resending its first prompt. */
+  REVISE_ANSWER(data: ReviseAnswerRequest): string;
   /** Side panel → content script. Write a final answer into the live field. */
   INSERT_FIELD(data: InsertFieldRequest): InsertFieldResult;
   /** Side panel → background. Persist a manual label/type correction. */

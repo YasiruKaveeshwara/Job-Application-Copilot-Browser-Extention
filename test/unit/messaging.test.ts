@@ -59,6 +59,27 @@ describe('messaging contracts', () => {
     expect(result).toEqual(answers);
   });
 
+  it('round-trips a single-answer revision request without page context', async () => {
+    removers.push(
+      onMessage('REVISE_ANSWER', ({ data }) => {
+        expect(data.question).toBe('Why do you want to join our company?');
+        expect(data.previousAnswer).toBe('The first answer.');
+        expect(data.instruction).toBe('Make it shorter.');
+        expect(data).not.toHaveProperty('context');
+        return 'A shorter revised answer.';
+      }),
+    );
+
+    const result = await sendMessage('REVISE_ANSWER', {
+      tempId: 'f0',
+      question: 'Why do you want to join our company?',
+      elementType: 'textarea',
+      previousAnswer: 'The first answer.',
+      instruction: 'Make it shorter.',
+    });
+    expect(result).toBe('A shorter revised answer.');
+  });
+
   it('round-trips INSERT_FIELD and reports success', async () => {
     removers.push(
       onMessage('INSERT_FIELD', ({ data }) => {
