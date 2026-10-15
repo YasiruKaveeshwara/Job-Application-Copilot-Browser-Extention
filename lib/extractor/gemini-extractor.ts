@@ -1,6 +1,8 @@
 import type { ExtractedProfileData } from '../types';
 import { callGemini } from '../gemini-client';
 import { GeneratorError } from '../generator/types';
+import { DEFAULT_PROMPT_SETTINGS } from '../prompt-settings';
+import { getPromptSettings } from '../storage';
 import { ExtractionSchemaError, validateExtractedProfile } from './schema';
 import type { ProfileExtractor } from './types';
 import { base64ByteLength, checkPdfSize } from './types';
@@ -23,22 +25,8 @@ import { base64ByteLength, checkPdfSize } from './types';
 // lib/gemini-client.ts, shared with the answer generator. This file is only the
 // request body and what to do with the reply.
 
-/**
- * The extraction instruction, verbatim from the feature specification.
- *
- * Fixed text on purpose. Every clause is doing work: "only JSON" and "no text
- * outside the JSON object" keep the reply parseable, and the two sentences about
- * not inventing anything are the whole contract of the feature — an import the
- * user has to fact-check is worse than no import. Reword only if a real response
- * proves unreliable, and never to widen what is asked for.
- */
-export const EXTRACTION_INSTRUCTION = [
-  'Extract structured data from this CV/resume.',
-  'Return only JSON matching the provided schema.',
-  'Do not invent or infer anything not explicitly present in the document.',
-  'If a field cannot be determined, omit it entirely rather than guessing.',
-  'Do not include any text outside the JSON object.',
-].join(' ');
+/** Seed text retained for callers that display or validate the default. */
+export const EXTRACTION_INSTRUCTION = DEFAULT_PROMPT_SETTINGS.cvExtractionInstruction;
 
 /**
  * `ExtractedProfileData` in Gemini's responseSchema dialect (an OpenAPI subset
@@ -145,7 +133,10 @@ export class GeminiExtractor implements ProfileExtractor {
     const tooBig = checkPdfSize(base64ByteLength(pdfBase64));
     if (tooBig !== undefined) throw new GeneratorError('config', tooBig);
 
-    const text = await callGemini(this.buildRequestBody(pdfBase64));
+    const prompts = await getPromptSettings();
+    const text = await callGemini(
+      this.buildRequestBody(pdfBase64, prompts.cvExtractionInstruction),
+    );
     try {
       return validateExtractedProfile(text);
     } catch (cause) {
@@ -162,7 +153,10 @@ export class GeminiExtractor implements ProfileExtractor {
     }
   }
 
-  private buildRequestBody(pdfBase64: string): unknown {
+  private buildRequestBody(
+    pdfBase64: string,
+    extractionInstruction: string = EXTRACTION_INSTRUCTION,
+  ): unknown {
     return {
       contents: [
         {
@@ -171,7 +165,7 @@ export class GeminiExtractor implements ProfileExtractor {
             // Document first, instruction second, as Google's document-input
             // samples do: the prompt reads as a question about the file above it.
             { inlineData: { mimeType: 'application/pdf', data: pdfBase64 } },
-            { text: EXTRACTION_INSTRUCTION },
+            { text: extractionInstruction },
           ],
         },
       ],

@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { filterByHeuristic } from '../../lib/field-relevance';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { filterByAI, filterByHeuristic } from '../../lib/field-relevance';
+import { savePromptSettings, saveSettings } from '../../lib/storage';
+import { DEFAULT_PROMPT_SETTINGS } from '../../lib/prompt-settings';
 import type { DetectedField } from '../../lib/types';
 
 /** Minimal field stub for testing. */
@@ -28,6 +31,49 @@ describe('filterByHeuristic', () => {
     ];
 
     expect(filterByHeuristic(fields)).toHaveLength(7);
+  });
+
+  describe('filterByAI prompts', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('uses the saved system prompt and output reminder', async () => {
+      fakeBrowser.reset();
+      await saveSettings({ apiKey: 'test-key', modelId: 'test-model' });
+      await savePromptSettings({
+        ...DEFAULT_PROMPT_SETTINGS,
+        fieldRelevanceSystem: 'Custom relevance system prompt',
+        fieldRelevanceReminder: 'Custom relevance output instruction',
+      });
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            candidates: [
+              {
+                content: {
+                  parts: [{ text: JSON.stringify({ relevant: ['f-Email'] }) }],
+                },
+                finishReason: 'STOP',
+              },
+            ],
+          }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const email = field('Email');
+      await filterByAI([email], {
+        rawText: 'Engineering role',
+        url: 'https://jobs.example.com/role',
+        pageTitle: 'Engineer',
+      });
+
+      const request = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+      expect(request.systemInstruction.parts[0].text).toBe('Custom relevance system prompt');
+      expect(request.contents[0].parts[0].text).toContain('Custom relevance output instruction');
+    });
   });
 
   it('removes search bars', () => {

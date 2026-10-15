@@ -1,5 +1,7 @@
 import { storage } from '#imports';
 import type { ProfileData, Settings, ModelChoice } from './types';
+import { DEFAULT_PROMPT_SETTINGS, PROMPT_FIELDS } from './prompt-settings';
+import type { PromptSettings } from './prompt-settings';
 
 // Local-only persistence for the user's profile. The `local:` prefix keeps the
 // data on-device (never synced to the browser account), per the build guide,
@@ -126,4 +128,30 @@ export async function getSettings(): Promise<Settings> {
 
 export async function saveSettings(value: Settings): Promise<void> {
   await settingsItem.setValue(value);
+}
+
+// ---------------------------------------------------------------------------
+// Editable model prompts
+// ---------------------------------------------------------------------------
+
+const PROMPT_SETTINGS_KEY = 'local:promptSettings' as const;
+const promptSettingsItem = storage.defineItem<Partial<PromptSettings>>(PROMPT_SETTINGS_KEY, {
+  version: 1,
+  fallback: {},
+});
+
+/** Return saved prompt text with defaults for new or missing prompt fields. */
+export async function getPromptSettings(): Promise<PromptSettings> {
+  const stored = await promptSettingsItem.getValue();
+  const prompts: PromptSettings = { ...DEFAULT_PROMPT_SETTINGS };
+  for (const { id } of PROMPT_FIELDS) {
+    const value = stored[id];
+    if (typeof value === 'string') prompts[id] = value;
+  }
+  return prompts;
+}
+
+/** Save the user's complete editable prompt set locally on this device. */
+export async function savePromptSettings(value: PromptSettings): Promise<void> {
+  await promptSettingsItem.setValue(value);
 }

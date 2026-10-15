@@ -14,6 +14,7 @@ edit, and insert every answer yourself.
 - **Dynamic model discovery** — queries the Google Gemini API after a new API key is saved and on extension startup to discover the text generation models available to that key. The first choice is ranked from API-returned model family, version, and token-limit metadata; no model IDs are bundled as defaults.
 - **Persistent model selection** — newly discovered keys select the highest-ranked available model; a model you choose is saved locally and remains selected until you choose another model or save a different API key.
 - **Automatic model failover & recovery** — if a model is rate-limited (`HTTP 429`), decommissioned (`HTTP 404`), or overloaded (`HTTP 5xx`), the extension tries other models returned for that key for the current request without changing your saved selection.
+- **Editable AI prompts** — edit and save the seeded instructions for answer drafting, saved-answer matching, field relevance, and CV extraction from **Settings → Prompts**. Prompt text is stored locally; restore the original seeds at any time.
 - **Profile-driven drafts** — retrieves the most relevant fragments from your work history, projects, and skills for open-ended questions before calling the model.
 - **CV import with explicit confirmation** — upload a PDF CV and the model reads what it can off it; every extracted value is shown grouped by category, editable, and unticked wherever it would change something you typed. Nothing is saved until you confirm. See [Importing a CV](#importing-a-cv).
 - **Bring-your-own-key** — your Gemini API key lives in local extension storage only. It is never synced to your browser account.
@@ -187,6 +188,16 @@ button to open the side panel, and press **Scan this page**.
 - **Dynamic Model Discovery:** Models are fetched from `GET /v1beta/models` after saving a new Gemini API key and on extension startup. The selector contains only generation-capable models returned for that key. The first result is ranked using generic model-family names, API version, and token limits.
 - **Automatic Model Failover:** If the selected model experiences **Quota Exceeded (`HTTP 429`)**, **Model Deprecation / Not Found (`HTTP 404`)**, or **Server Overloaded (`HTTP 5xx`)**, the extension tries other models returned for the key for that request. This does not replace the saved selection.
 - **Custom Model Support:** Any custom model identifier can still be entered or saved directly.
+
+## Editing AI prompts
+
+Open the extension settings and choose **Prompts** in the side panel, or click
+**Edit prompts** on the options page. Prompts are grouped by feature with labels
+and descriptions. Edit them and click **Save Changes**; the customized text is
+stored in local extension storage and used on subsequent model requests. Use
+**Reset defaults** to restore the built-in seed instructions. The answer drafting
+reminder supports `{count}` and `{plural}` placeholders, and the saved correction
+instruction supports `{correction}`.
 
 ## What ships in a build
 

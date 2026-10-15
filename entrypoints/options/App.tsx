@@ -7,8 +7,12 @@ import {
   getSettings,
   saveSettings,
   saveAvailableModels,
+  getPromptSettings,
+  savePromptSettings,
   defaultSettings,
 } from '@/lib/storage';
+import type { PromptSettings } from '@/lib/prompt-settings';
+import { DEFAULT_PROMPT_SETTINGS } from '@/lib/prompt-settings';
 import { Button } from './components/primitives';
 import { ApiSettingsSection } from './components/ApiSettingsSection';
 import { CachedDraftsSection } from './components/CachedDraftsSection';
@@ -21,12 +25,15 @@ import { SkillsSection } from './components/SkillsSection';
 import { StandardAnswersSection } from './components/StandardAnswersSection';
 import { ResumeVariantsSection } from './components/ResumeVariantsSection';
 import { StylePreferencesSection } from './components/StylePreferencesSection';
+import { PromptSettingsSection } from './components/PromptSettingsSection';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function App() {
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [prompts, setPrompts] = useState<PromptSettings>({ ...DEFAULT_PROMPT_SETTINGS });
+  const [promptPageOpen, setPromptPageOpen] = useState(false);
   const [savedApiKey, setSavedApiKey] = useState('');
   const [autoDiscoverKey, setAutoDiscoverKey] = useState('');
   const [loaded, setLoaded] = useState(false);
@@ -35,11 +42,12 @@ export default function App() {
   // Load existing profile and settings on mount.
   useEffect(() => {
     let active = true;
-    Promise.all([getProfile(), getSettings()])
-      .then(([storedProfile, storedSettings]) => {
+    Promise.all([getProfile(), getSettings(), getPromptSettings()])
+      .then(([storedProfile, storedSettings, storedPrompts]) => {
         if (active) {
           setProfile(storedProfile);
           setSettings(storedSettings);
+          setPrompts(storedPrompts);
           setSavedApiKey(storedSettings.apiKey.trim());
           setLoaded(true);
         }
@@ -62,6 +70,11 @@ export default function App() {
     setStatus('idle');
   };
 
+  const patchPrompts = (value: PromptSettings) => {
+    setPrompts(value);
+    setStatus('idle');
+  };
+
   const handleSave = async () => {
     setStatus('saving');
     const apiKey = settings.apiKey.trim();
@@ -75,6 +88,7 @@ export default function App() {
       await Promise.all([
         saveProfile(profile),
         saveSettings(settingsToSave),
+        savePromptSettings(prompts),
         ...(keyChanged ? [saveAvailableModels([])] : []),
       ]);
       setSettings(settingsToSave);
@@ -154,6 +168,9 @@ export default function App() {
 
           {/* Save controls */}
           <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={() => setPromptPageOpen((open) => !open)}>
+              {promptPageOpen ? 'Back to settings' : 'Edit prompts'}
+            </Button>
             {status === 'saved' && (
               <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
                 <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -213,32 +230,40 @@ export default function App() {
 
       {/* Main Container */}
       <main className="mx-auto max-w-4xl space-y-5 px-6 py-8">
-        {/* Sections */}
-        <ApiSettingsSection
-          value={settings}
-          onChange={patchSettings}
-          savedApiKey={savedApiKey}
-          autoDiscoverKey={autoDiscoverKey}
-        />
-        <CvImportSection value={profile} onApply={handleImport} />
-        <PersonalSection value={profile.personal} onChange={(v) => patch('personal', v)} />
-        <EducationSection value={profile.education} onChange={(v) => patch('education', v)} />
-        <WorkHistorySection value={profile.workHistory} onChange={(v) => patch('workHistory', v)} />
-        <ProjectsSection value={profile.projects} onChange={(v) => patch('projects', v)} />
-        <SkillsSection value={profile.skills} onChange={(v) => patch('skills', v)} />
-        <StandardAnswersSection
-          value={profile.standardAnswers}
-          onChange={(v) => patch('standardAnswers', v)}
-        />
-        <ResumeVariantsSection
-          value={profile.resumeVariants}
-          onChange={(v) => patch('resumeVariants', v)}
-        />
-        <StylePreferencesSection
-          value={profile.stylePreferences}
-          onChange={(v) => patch('stylePreferences', v)}
-        />
-        <CachedDraftsSection />
+        {promptPageOpen ? (
+          <PromptSettingsSection value={prompts} onChange={patchPrompts} />
+        ) : (
+          <>
+            <ApiSettingsSection
+              value={settings}
+              onChange={patchSettings}
+              savedApiKey={savedApiKey}
+              autoDiscoverKey={autoDiscoverKey}
+            />
+            <CvImportSection value={profile} onApply={handleImport} />
+            <PersonalSection value={profile.personal} onChange={(v) => patch('personal', v)} />
+            <EducationSection value={profile.education} onChange={(v) => patch('education', v)} />
+            <WorkHistorySection
+              value={profile.workHistory}
+              onChange={(v) => patch('workHistory', v)}
+            />
+            <ProjectsSection value={profile.projects} onChange={(v) => patch('projects', v)} />
+            <SkillsSection value={profile.skills} onChange={(v) => patch('skills', v)} />
+            <StandardAnswersSection
+              value={profile.standardAnswers}
+              onChange={(v) => patch('standardAnswers', v)}
+            />
+            <ResumeVariantsSection
+              value={profile.resumeVariants}
+              onChange={(v) => patch('resumeVariants', v)}
+            />
+            <StylePreferencesSection
+              value={profile.stylePreferences}
+              onChange={(v) => patch('stylePreferences', v)}
+            />
+            <CachedDraftsSection />
+          </>
+        )}
 
         {/* Bottom Save */}
         <div className="flex items-center justify-between py-4 pb-8">

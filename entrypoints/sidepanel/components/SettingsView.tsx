@@ -7,8 +7,13 @@ import {
   getSettings,
   saveSettings,
   saveAvailableModels,
+  getPromptSettings,
+  savePromptSettings,
   defaultSettings,
 } from '@/lib/storage';
+import { DEFAULT_PROMPT_SETTINGS } from '@/lib/prompt-settings';
+import type { PromptSettings } from '@/lib/prompt-settings';
+import { PromptSettingsSection } from '@/entrypoints/options/components/PromptSettingsSection';
 import { ApiSettingsSection } from '@/entrypoints/options/components/ApiSettingsSection';
 import { CachedDraftsSection } from '@/entrypoints/options/components/CachedDraftsSection';
 import { CvImportSection } from '@/entrypoints/options/components/CvImportSection';
@@ -24,7 +29,7 @@ import { PanelButton } from './ui';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
-type SettingsTab = 'all' | 'api' | 'cv' | 'profile' | 'preferences';
+type SettingsTab = 'all' | 'api' | 'cv' | 'profile' | 'preferences' | 'prompts';
 
 const TABS: { id: SettingsTab; label: string; icon: string }[] = [
   { id: 'all', label: 'All', icon: '◈' },
@@ -32,11 +37,13 @@ const TABS: { id: SettingsTab; label: string; icon: string }[] = [
   { id: 'cv', label: 'Import CV', icon: '📄' },
   { id: 'profile', label: 'Profile', icon: '👤' },
   { id: 'preferences', label: 'Prefs', icon: '⚙️' },
+  { id: 'prompts', label: 'Prompts', icon: '✎' },
 ];
 
 export function SettingsView({ onBack }: { onBack: () => void }) {
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [prompts, setPrompts] = useState<PromptSettings>({ ...DEFAULT_PROMPT_SETTINGS });
   const [savedApiKey, setSavedApiKey] = useState('');
   const [autoDiscoverKey, setAutoDiscoverKey] = useState('');
   const [loaded, setLoaded] = useState(false);
@@ -45,11 +52,12 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     let active = true;
-    Promise.all([getProfile(), getSettings()])
-      .then(([storedProfile, storedSettings]) => {
+    Promise.all([getProfile(), getSettings(), getPromptSettings()])
+      .then(([storedProfile, storedSettings, storedPrompts]) => {
         if (active) {
           setProfile(storedProfile);
           setSettings(storedSettings);
+          setPrompts(storedPrompts);
           setSavedApiKey(storedSettings.apiKey.trim());
           setLoaded(true);
         }
@@ -72,6 +80,11 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
     setStatus('idle');
   };
 
+  const patchPrompts = (value: PromptSettings) => {
+    setPrompts(value);
+    setStatus('idle');
+  };
+
   const handleSave = async () => {
     setStatus('saving');
     const apiKey = settings.apiKey.trim();
@@ -85,6 +98,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
       await Promise.all([
         saveProfile(profile),
         saveSettings(settingsToSave),
+        savePromptSettings(prompts),
         ...(keyChanged ? [saveAvailableModels([])] : []),
       ]);
       setSettings(settingsToSave);
@@ -269,6 +283,9 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
             />
             <CachedDraftsSection />
           </>
+        )}
+        {activeTab === 'prompts' && (
+          <PromptSettingsSection value={prompts} onChange={patchPrompts} />
         )}
 
         <div className="flex justify-end pt-2">

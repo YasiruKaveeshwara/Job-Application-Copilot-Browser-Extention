@@ -10,8 +10,11 @@ import {
   defaultSettings,
   getAvailableModels,
   saveAvailableModels,
+  getPromptSettings,
+  savePromptSettings,
 } from '../../lib/storage';
 import type { ProfileData, ModelChoice } from '../../lib/types';
+import { DEFAULT_PROMPT_SETTINGS } from '../../lib/prompt-settings';
 
 function sampleProfile(): ProfileData {
   return {
@@ -158,5 +161,34 @@ describe('available models storage', () => {
     ];
     await saveAvailableModels(customModels);
     expect(await getAvailableModels()).toEqual(customModels);
+  });
+});
+
+describe('editable prompt storage', () => {
+  beforeEach(() => {
+    fakeBrowser.reset();
+  });
+
+  it('returns the seeded prompts on a fresh install', async () => {
+    expect(await getPromptSettings()).toEqual(DEFAULT_PROMPT_SETTINGS);
+  });
+
+  it('persists all edited prompt text', async () => {
+    const edited = {
+      ...DEFAULT_PROMPT_SETTINGS,
+      answerDraftingSystem: 'My custom answer instructions',
+    };
+    await savePromptSettings(edited);
+    expect(await getPromptSettings()).toEqual(edited);
+  });
+
+  it('fills missing saved prompt fields with their default seed', async () => {
+    await fakeBrowser.storage.local.set({
+      promptSettings: { answerDraftingSystem: 'My custom answer instructions' },
+    });
+    expect(await getPromptSettings()).toEqual({
+      ...DEFAULT_PROMPT_SETTINGS,
+      answerDraftingSystem: 'My custom answer instructions',
+    });
   });
 });

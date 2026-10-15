@@ -18,9 +18,10 @@ import type { DetectedField, GeneratedAnswer, JobContext, ProfileData } from './
 //      materially decides the draft is hashed into the key: the role family, the
 //      field's label and element type, the site, the profile fragments retrieved
 //      for that field, the style preferences, any correction the user saved for
-//      the label, and the model ID. Edit the profile and the next scan simply
-//      computes a different key — the old entry is never read again, and is
-//      evicted in time. Nothing has to remember to invalidate anything.
+//      the label, the model ID, and the active prompt instructions. Edit any of
+//      them and the next scan simply computes a different key — the old entry is
+//      never read again, and is evicted in time. Nothing has to remember to
+//      invalidate anything.
 //
 //   2. Time expiry catches what a key cannot see. A cached draft stops being
 //      wanted long before it stops matching its key: the job market moves, the
@@ -47,7 +48,7 @@ export const MAX_CACHE_ENTRIES = 300;
 
 /** Same `local:` prefix as everything else: on-device, never synced. */
 const CACHE_KEY = 'local:answerCache' as const;
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 /**
  * One cached draft.
@@ -79,6 +80,8 @@ export interface CacheInputs {
   /** A saved correction for this label, or `''`. */
   hint: string;
   modelId: string;
+  /** Prompt text that determines the generated answer. */
+  promptSignature?: string;
 }
 
 function normalize(text: string): string {
@@ -116,6 +119,7 @@ function keyMaterial(inputs: CacheInputs): string {
     inputs.field.elementType,
     extractDomain(inputs.context.url).toLowerCase(),
     inputs.modelId,
+    inputs.promptSignature ?? '',
     normalize(inputs.hint),
     // The profile's contribution. Order matters and is preserved: retrieval
     // ranks fragments, and a different ranking is a different prompt.

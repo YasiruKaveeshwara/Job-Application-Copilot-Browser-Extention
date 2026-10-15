@@ -3,7 +3,7 @@ import type { GenerationRequest } from './messaging';
 import type { Generator } from './generator/types';
 import { GeneratorError } from './generator/types';
 import { getGenerator } from './generator';
-import { getProfile, getSettings } from './storage';
+import { getProfile, getSettings, getPromptSettings } from './storage';
 import { correctionHints } from './mapping-cache';
 import { answerCacheKeys, readCachedAnswers, writeCachedAnswers } from './cache';
 import type { CacheInputs } from './cache';
@@ -160,6 +160,20 @@ export async function generateAnswers(
     // model, so a hit means the same question, the same profile material, and the
     // same model as last time (build guide, Phase 15).
     const { modelId } = await getSettings();
+    const promptSettings = await getPromptSettings();
+    const promptSignature = JSON.stringify([
+      promptSettings.answerDraftingSystem,
+      promptSettings.answerDraftingReminder,
+      promptSettings.conciseAnswerLength,
+      promptSettings.standardAnswerLength,
+      promptSettings.detailedAnswerLength,
+      promptSettings.uncertainLabelInstruction,
+      promptSettings.missingLabelInstruction,
+      promptSettings.missingProfileFragmentsInstruction,
+      promptSettings.correctionHintInstruction,
+      promptSettings.standardAnswerSystem,
+      promptSettings.standardAnswerReminder,
+    ]);
     const cacheInputs: CacheInputs[] = needsGeneration.map((field) => ({
       field,
       context: request.context,
@@ -167,6 +181,7 @@ export async function generateAnswers(
       style: profile.stylePreferences,
       hint: hintsByField[field.tempId] ?? '',
       modelId,
+      promptSignature,
     }));
     const keys = await answerCacheKeys(cacheInputs);
     const cached = await readCachedAnswers(keys);
@@ -183,6 +198,7 @@ export async function generateAnswers(
       fragmentsByField,
       profile.stylePreferences,
       hintsByField,
+      promptSettings,
     );
 
     // Validated again here even though GeminiGenerator already validates: this is

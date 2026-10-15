@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { buildPrompt, SYSTEM_PROMPT } from '../../lib/prompt-builder';
 import { emptyProfile } from '../../lib/storage';
+import { DEFAULT_PROMPT_SETTINGS } from '../../lib/prompt-settings';
 import type { DetectedField, JobContext, ProfileData } from '../../lib/types';
 
 type Style = ProfileData['stylePreferences'];
@@ -254,5 +255,19 @@ describe('buildPrompt', () => {
     ];
     expect(buildPrompt(...args)).toEqual(buildPrompt(...args));
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses editable prompt settings for the request instructions', () => {
+    const prompts = {
+      ...DEFAULT_PROMPT_SETTINGS,
+      answerDraftingSystem: 'Custom system prompt',
+      answerDraftingReminder: 'Finish with {count} field{plural}.',
+      missingProfileFragmentsInstruction: 'Use no unsupported facts.',
+    };
+    const prompt = buildPrompt([field()], context(), {}, style(), {}, prompts);
+
+    expect(prompt.system).toBe('Custom system prompt');
+    expect(prompt.user).toContain('Use no unsupported facts.');
+    expect(prompt.user.trimEnd()).toMatch(/Finish with 1 field\.$/);
   });
 });

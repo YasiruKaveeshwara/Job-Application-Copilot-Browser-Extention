@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { savePromptSettings } from '../../lib/storage';
+import { DEFAULT_PROMPT_SETTINGS } from '../../lib/prompt-settings';
 import { matchAndParaphraseStandardAnswers } from '../../lib/standard-answer-matcher';
 import { emptyProfile } from '../../lib/storage';
 import type { DetectedField, GeneratedAnswer, JobContext, ProfileData } from '../../lib/types';
@@ -85,6 +88,28 @@ function failingGenerator(error: Error): Generator {
 }
 
 describe('matchAndParaphraseStandardAnswers', () => {
+  beforeEach(() => {
+    fakeBrowser.reset();
+  });
+
+  it("uses the user's saved system prompt and output reminder", async () => {
+    await savePromptSettings({
+      ...DEFAULT_PROMPT_SETTINGS,
+      standardAnswerSystem: 'Custom standard answer system prompt',
+      standardAnswerReminder: 'Custom standard answer reminder',
+    });
+    const { generator, prompts } = matchingGenerator('f-cover-letter', 'A tailored letter.');
+
+    await matchAndParaphraseStandardAnswers(
+      [field('Cover Letter')],
+      profileWithStandardAnswers(),
+      context,
+      generator,
+    );
+
+    expect(prompts[0]!.system).toBe('Custom standard answer system prompt');
+    expect(prompts[0]!.user.trimEnd()).toMatch(/Custom standard answer reminder$/);
+  });
   it('returns empty map when profile has no standard answers', async () => {
     const profile = emptyProfile();
     const { generator, prompts } = capturing([]);

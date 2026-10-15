@@ -98,6 +98,7 @@ describe('answerCacheKeys', () => {
       avoid: inputs({ style: { tone: '', avoid: ['buzzwords'], length: 'standard' } }),
       correction: inputs({ hint: 'salary expectation' }),
       model: inputs({ modelId: 'gemini-3.5-flash-lite' }),
+      prompt: inputs({ promptSignature: 'custom system prompt' }),
     };
 
     const keys = new Map<string, string>();

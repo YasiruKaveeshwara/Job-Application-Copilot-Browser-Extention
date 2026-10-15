@@ -1,5 +1,6 @@
 import type { DetectedField, JobContext } from './types';
 import { callGemini } from './gemini-client';
+import { getPromptSettings } from './storage';
 
 // Two-layer relevance filter that reduces detected fields to only those that
 // belong to a job application form. Runs after the hard element-type filter in
@@ -92,30 +93,6 @@ const RELEVANCE_SCHEMA = {
   required: ['relevant'],
 };
 
-const RELEVANCE_SYSTEM_PROMPT = [
-  'You are a classifier that decides which form fields on a web page belong to a',
-  'job application form. You are given a list of detected fields with their labels,',
-  'element types, and surrounding text. Return ONLY the tempId values of fields',
-  'that are genuinely part of a job application process.',
-  '',
-  'Include fields for: applicant name, email, phone, address, city, state, zip,',
-  'country, cover letter, motivation letter, resume/CV upload references, salary',
-  'expectations, work authorization, visa sponsorship, availability, start date,',
-  'notice period, years of experience, education details, work history, LinkedIn',
-  'URL, GitHub URL, portfolio URL, personal website, referral source ("how did',
-  'you hear about us"), diversity/EEO questions, veteran status, disability',
-  'status, and any open-ended application questions (e.g. "Why do you want to',
-  'work here?", "Tell us about yourself", "Describe a challenge").',
-  '',
-  'Exclude fields for: search bars, filters, sorting, newsletter subscription,',
-  'login/signup, password, chat, feedback, comments, cookie consent, captcha,',
-  'shopping cart, payment, promo codes, social media sharing, pagination,',
-  'accessibility settings, language selectors, and any site-navigation controls.',
-  '',
-  'When in doubt, INCLUDE the field — it is better to show a field the user can',
-  'dismiss than to hide one they need.',
-].join('\n');
-
 /**
  * Build a compact summary of each field for the AI to classify.
  * Keeps the prompt small to minimise latency and cost.
@@ -144,24 +121,22 @@ export async function filterByAI(
 ): Promise<DetectedField[]> {
   if (fields.length === 0) return [];
 
-  // Build the user prompt
-  const fieldDescriptions = fields.map(buildFieldSummary).join('\n---\n');
-  const userPrompt = [
-    `## Page context`,
-    `Title: ${jobContext.pageTitle}`,
-    `URL: ${jobContext.url}`,
-    '',
-    `## Detected fields (${fields.length})`,
-    fieldDescriptions,
-    '',
-    `Return a JSON object with a single key "relevant" containing an array of`,
-    `tempId strings for the fields that are part of a job application. Include`,
-    `ONLY application-relevant fields.`,
-  ].join('\n');
-
   try {
+    const prompts = await getPromptSettings();
+    const fieldDescriptions = fields.map(buildFieldSummary).join('\n---\n');
+    const userPrompt = [
+      `## Page context`,
+      `Title: ${jobContext.pageTitle}`,
+      `URL: ${jobContext.url}`,
+      '',
+      `## Detected fields (${fields.length})`,
+      fieldDescriptions,
+      '',
+      prompts.fieldRelevanceReminder,
+    ].join('\n');
+
     const text = await callGemini({
-      systemInstruction: { parts: [{ text: RELEVANCE_SYSTEM_PROMPT }] },
+      systemInstruction: { parts: [{ text: prompts.fieldRelevanceSystem }] },
       contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
       generationConfig: {
         responseMimeType: 'application/json',

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { saveSettings } from '../../lib/storage';
+import { saveSettings, savePromptSettings } from '../../lib/storage';
+import { DEFAULT_PROMPT_SETTINGS } from '../../lib/prompt-settings';
 import { GeminiExtractor, EXTRACTION_INSTRUCTION } from '../../lib/extractor/gemini-extractor';
 import { MockExtractor, MOCK_EXTRACTED_CV } from '../../lib/extractor/mock-extractor';
 import { MAX_PDF_BYTES, base64ByteLength, checkPdfSize } from '../../lib/extractor/types';
@@ -108,6 +109,18 @@ describe('GeminiExtractor request shape', () => {
     expect(bodyOf(fetchMock).contents).toHaveLength(1);
     expect(bodyOf(fetchMock).contents[0]!.role).toBe('user');
     expect(parts[0]!.inlineData).toEqual({ mimeType: 'application/pdf', data: PDF_BASE64 });
+  });
+
+  it('sends the saved CV extraction prompt rather than only the seed text', async () => {
+    const customInstruction = 'Read this resume using my instructions.';
+    await savePromptSettings({
+      ...DEFAULT_PROMPT_SETTINGS,
+      cvExtractionInstruction: customInstruction,
+    });
+
+    await new GeminiExtractor().extract(PDF_BASE64);
+    const parts = bodyOf(fetchMock).contents[0]!.parts;
+    expect(parts[1]!.text).toBe(customInstruction);
   });
 
   it('sends the extraction instruction verbatim, after the document', async () => {
