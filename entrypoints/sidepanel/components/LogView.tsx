@@ -3,11 +3,38 @@ import { getEntries, clearLog, subscribe } from '@/lib/log';
 import type { LogEntry, LogLevel } from '@/lib/log';
 import { PanelButton } from './ui';
 
-const LEVEL_TAGS: Record<LogLevel, { text: string; bg: string; border: string }> = {
-  error: { text: 'text-red-400', bg: 'bg-red-950/40', border: 'border-red-900/60' },
-  warn: { text: 'text-amber-400', bg: 'bg-amber-950/40', border: 'border-amber-900/60' },
-  info: { text: 'text-sky-400', bg: 'bg-sky-950/40', border: 'border-sky-900/60' },
-  debug: { text: 'text-slate-400', bg: 'bg-slate-900', border: 'border-slate-800' },
+const LEVEL_STYLES: Record<
+  LogLevel,
+  { label: string; text: string; bg: string; border: string; dot: string }
+> = {
+  error: {
+    label: 'ERR',
+    text: 'text-red-400',
+    bg: 'bg-red-950/50',
+    border: 'border-red-800/40',
+    dot: 'bg-red-500',
+  },
+  warn: {
+    label: 'WRN',
+    text: 'text-amber-400',
+    bg: 'bg-amber-950/40',
+    border: 'border-amber-800/40',
+    dot: 'bg-amber-500',
+  },
+  info: {
+    label: 'INF',
+    text: 'text-sky-400',
+    bg: 'bg-sky-950/30',
+    border: 'border-sky-800/40',
+    dot: 'bg-sky-500',
+  },
+  debug: {
+    label: 'DBG',
+    text: 'text-slate-500',
+    bg: 'bg-slate-900/60',
+    border: 'border-slate-800/50',
+    dot: 'bg-slate-600',
+  },
 };
 
 function formatTime(ts: number): string {
@@ -21,35 +48,40 @@ function formatTime(ts: number): string {
 
 function EntryRow({ entry }: { entry: LogEntry }) {
   const [expanded, setExpanded] = useState(false);
-  const tag = LEVEL_TAGS[entry.level];
+  const s = LEVEL_STYLES[entry.level];
 
   return (
     <li
-      className={`rounded-xl border ${tag.border} ${tag.bg} p-2.5 font-mono text-[11px] leading-relaxed transition-all`}
+      className={`rounded-lg border ${s.border} ${s.bg} px-3 py-2 font-mono text-[10.5px] leading-relaxed transition-all`}
     >
-      <div className="flex items-start gap-1.5">
-        <span className="shrink-0 text-slate-500 text-[10px]">{formatTime(entry.timestamp)}</span>
-        <span
-          className={`shrink-0 font-bold uppercase text-[9.5px] px-1 rounded ${tag.text} border ${tag.border}`}
-        >
-          {entry.level}
+      <div className="flex items-start gap-2">
+        <span className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
+        <span className="shrink-0 text-slate-600 text-[10px] tabular-nums">
+          {formatTime(entry.timestamp)}
         </span>
-        <span className="shrink-0 rounded bg-slate-800/90 px-1.5 py-0.2 text-[10px] font-semibold text-slate-300">
+        <span
+          className={`shrink-0 font-bold uppercase text-[9px] px-1 py-0.5 rounded border ${s.text} ${s.border}`}
+        >
+          {s.label}
+        </span>
+        <span className="shrink-0 rounded bg-slate-800 px-1.5 text-[9.5px] font-semibold text-slate-400">
           {entry.source}
         </span>
-        <span className="min-w-0 flex-1 break-words text-slate-200">{entry.message}</span>
+        <span className="min-w-0 flex-1 break-words text-slate-200 text-[10.5px]">
+          {entry.message}
+        </span>
       </div>
       {entry.detail && (
-        <div className="mt-1.5 pl-1">
+        <div className="mt-1.5 pl-5">
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
             className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 underline"
           >
-            {expanded ? '▲ Hide trace' : '▼ View details'}
+            {expanded ? '▲ hide' : '▼ details'}
           </button>
           {expanded && (
-            <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 p-2 text-[10px] text-slate-300 selection:bg-indigo-600">
+            <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 p-2 text-[10px] text-slate-300 selection:bg-indigo-600">
               {entry.detail}
             </pre>
           )}
@@ -74,7 +106,7 @@ export function LogView({ onBack }: { onBack: () => void }) {
     clearLog();
   }, []);
 
-  const handleCopyAll = async () => {
+  const handleCopyAll = useCallback(async () => {
     const text = filtered
       .map(
         (e) =>
@@ -86,17 +118,18 @@ export function LogView({ onBack }: { onBack: () => void }) {
     await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  };
+  }, [filtered]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100 font-sans">
-      <header className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900/90 p-3 backdrop-blur-md">
+      {/* Header */}
+      <header className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-3 pt-3 pb-2.5 backdrop-blur-md">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onBack}
-              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              className="rounded-lg p-1.5 text-slate-500 transition-all hover:bg-slate-800 hover:text-slate-200"
               aria-label="Back"
             >
               <svg
@@ -114,11 +147,13 @@ export function LogView({ onBack }: { onBack: () => void }) {
             </button>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <h1 className="text-xs font-bold tracking-tight text-white">Diagnostics Console</h1>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h1 className="text-[11.5px] font-bold tracking-tight text-slate-100">
+                  Diagnostics Console
+                </h1>
               </div>
-              <p className="text-[10px] text-slate-400 font-mono">
-                {filtered.length} event{filtered.length === 1 ? '' : 's'} recorded
+              <p className="text-[9.5px] text-slate-500 font-mono mt-0.5">
+                {filtered.length} event{filtered.length === 1 ? '' : 's'}
               </p>
             </div>
           </div>
@@ -127,38 +162,65 @@ export function LogView({ onBack }: { onBack: () => void }) {
             <button
               type="button"
               onClick={() => void handleCopyAll()}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-[10.5px] font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-all"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10.5px] font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-all"
             >
-              {copied ? '✓ Copied' : 'Copy log'}
+              {copied ? (
+                <span className="flex items-center gap-1 text-emerald-400">
+                  <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Copied
+                </span>
+              ) : (
+                'Copy log'
+              )}
             </button>
-            <PanelButton
+            <button
+              type="button"
               onClick={handleClear}
-              className="text-slate-300 border-slate-700 bg-slate-800 hover:bg-slate-700"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-all"
             >
               Clear
-            </PanelButton>
+            </button>
           </div>
         </div>
 
         {/* Filter bar */}
-        <div className="mt-2.5 flex items-center justify-between border-t border-slate-800/80 pt-2 text-[10.5px]">
-          <label className="flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-slate-300">
+        <div className="mt-2.5 flex items-center gap-3 border-t border-slate-800/80 pt-2">
+          <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] text-slate-500 hover:text-slate-300 transition-colors">
             <input
               type="checkbox"
               checked={showDebug}
               onChange={(e) => setShowDebug(e.target.checked)}
-              className="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0"
+              className="h-3 w-3 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 focus:ring-offset-0"
             />
             Include DEBUG trace
           </label>
+
+          {/* Level legend */}
+          <div className="ml-auto flex items-center gap-2">
+            {(['error', 'warn', 'info'] as const).map((lvl) => (
+              <span
+                key={lvl}
+                className={`flex items-center gap-1 text-[9px] font-mono font-semibold ${LEVEL_STYLES[lvl].text}`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${LEVEL_STYLES[lvl].dot}`} />
+                {LEVEL_STYLES[lvl].label}
+              </span>
+            ))}
+          </div>
         </div>
       </header>
 
       <main className="flex-1 p-3">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 border border-slate-800 text-slate-500 mb-2">
-              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 border border-slate-800">
+              <svg className="h-5 w-5 text-slate-600" viewBox="0 0 20 20" fill="currentColor">
                 <path
                   fillRule="evenodd"
                   d="M3.25 3A2.25 2.25 0 0 0 1 5.25v9.5A2.25 2.25 0 0 0 3.25 17h13.5A2.25 2.25 0 0 0 19 14.75v-9.5A2.25 2.25 0 0 0 16.75 3H3.25ZM2.5 5.25a.75.75 0 0 1 .75-.75h13.5a.75.75 0 0 1 .75.75v9.5a.75.75 0 0 1-.75.75H3.25a.75.75 0 0 1-.75-.75v-9.5Z"
@@ -166,13 +228,13 @@ export function LogView({ onBack }: { onBack: () => void }) {
                 />
               </svg>
             </div>
-            <p className="text-xs font-semibold text-slate-400">Ready & Listening</p>
-            <p className="mt-1 text-[11px] text-slate-500 max-w-[220px]">
-              Actions taken in the sidepanel will output live diagnostic trace logs here.
+            <p className="text-[11px] font-semibold text-slate-500">No events yet</p>
+            <p className="mt-1 text-[10px] text-slate-600 max-w-[200px] leading-relaxed">
+              Actions in the sidepanel will output live diagnostic trace logs here.
             </p>
           </div>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {[...filtered].reverse().map((entry, i) => (
               <EntryRow key={`${entry.timestamp}-${i}`} entry={entry} />
             ))}

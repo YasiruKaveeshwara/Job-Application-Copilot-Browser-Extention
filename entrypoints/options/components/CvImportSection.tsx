@@ -121,10 +121,10 @@ export function CvImportSection({
           setDragOver(false);
           void handleFile(e.dataTransfer.files?.[0]);
         }}
-        className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+        className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-all cursor-pointer ${
           dragOver
-            ? 'border-indigo-500 bg-indigo-50/50'
-            : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50'
+            ? 'border-indigo-500 bg-indigo-50 scale-[1.01]'
+            : 'border-slate-200 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50/30'
         }`}
       >
         <input
@@ -136,27 +136,14 @@ export function CvImportSection({
           className="absolute inset-0 cursor-pointer opacity-0"
         />
 
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 mb-2">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl mb-3 transition-all ${dragOver ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
           {stage === 'busy' ? (
-            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            <svg className="h-5 w-5 animate-spin text-indigo-600" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
+              <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
             </svg>
           ) : (
-            <svg
-              className="h-5 w-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" y1="3" x2="12" y2="15" />
@@ -164,13 +151,13 @@ export function CvImportSection({
           )}
         </div>
 
-        <p className="text-xs font-bold text-slate-800">
+        <p className="text-[12px] font-bold text-slate-800">
           {stage === 'busy'
             ? 'Extracting resume details with AI…'
-            : 'Drop your Resume PDF here or browse'}
+            : 'Drop your Resume PDF here'}
         </p>
         <p className="mt-1 text-[11px] text-slate-500">
-          PDF format only • Max {MAX_PDF_LABEL} • Sent directly to Gemini API
+          or <span className="font-semibold text-indigo-600">browse files</span> · PDF only · Max {MAX_PDF_LABEL}
         </p>
       </div>
 

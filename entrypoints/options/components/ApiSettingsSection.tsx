@@ -5,7 +5,7 @@ import { sendMessage } from '@/lib/messaging';
 import { Section, TextInput } from './primitives';
 
 const SELECT_CLASSES =
-  'w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-medium text-slate-900 shadow-2xs transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
+  'w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-[12px] font-medium text-slate-900 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/15 hover:border-slate-300 cursor-pointer';
 
 export function ApiSettingsSection({
   value,
@@ -151,17 +151,20 @@ export function ApiSettingsSection({
         </select>
       </label>
 
-      <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 text-xs text-slate-600 flex items-start justify-between gap-3">
-        <p className="text-[11px] leading-relaxed">
-          Need an API key? Get one for free from Google AI Studio. No credit card required.
+      <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-xs flex items-center justify-between gap-3">
+        <p className="text-[11px] text-slate-600 leading-relaxed">
+          Need an API key? Get one for free from Google AI Studio — no credit card required.
         </p>
         <a
           href="https://aistudio.google.com/apikey"
           target="_blank"
           rel="noreferrer"
-          className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-600 border border-indigo-200/80 shadow-2xs hover:bg-indigo-50 transition-all"
+          className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-bold text-indigo-600 border border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-xs"
         >
-          Get Key →
+          Get Key
+          <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M5.22 14.78a.75.75 0 0 0 1.06 0l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-7.5a.75.75 0 0 0-.75-.75h-7.5a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 0 0 0 1.06Z" clipRule="evenodd" />
+          </svg>
         </a>
       </div>
     </Section>

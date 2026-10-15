@@ -53,17 +53,25 @@ npm install
 1. Go to [Google AI Studio](https://aistudio.google.com/app/apikey) and create a key.
 2. **Never commit the key to git.** `.env` and `.env.local` are already in `.gitignore`.
 
-### 3. Build or run the dev server
+### 3. Run the dev server or make a production build
 
 ```bash
-# Development (hot-reload, unpacked extension):
+# Development (watches files and hot-reloads the unpacked extension):
 npm run dev
 
 # Production build:
 npm run build
 ```
 
-### 4. Load the extension in Chrome
+For development, keep `npm run dev` running and use the Chrome instance WXT
+launches. If you want to load the dev build in your existing Chrome profile,
+enable **Developer mode** at `chrome://extensions`, click **Load unpacked**, and
+select `.output/chrome-mv3-dev/`. UI changes are reflected while the dev server
+is running; changes to extension configuration or background code may reload the
+extension, so reopen the side panel if needed.
+
+For a production build, `npm run build` writes to `.output/chrome-mv3/`. To load
+that build manually:
 
 1. Navigate to `chrome://extensions` and enable **Developer mode**.
 2. Click **Load unpacked** and select `.output/chrome-mv3/`.
@@ -146,6 +154,10 @@ first or the specs skip themselves with a message telling you to.
 so the full scan → draft → review round trip works with no key and no spend:
 
 ```bash
+# PowerShell:
+$env:VITE_USE_MOCK_GENERATOR = 'true'; npm run dev
+
+# bash:
 VITE_USE_MOCK_GENERATOR=true npm run dev
 ```
 
