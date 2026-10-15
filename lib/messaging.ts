@@ -90,8 +90,8 @@ export interface ProtocolMap {
   /**
    * Options page → background. Read structured data off an uploaded CV.
    *
-   * Returns what the model could honestly extract. Nothing is saved by this
-   * call — the options page shows it for review first (lib/extractor/merge.ts).
+   * Returns what the model could honestly extract. The options page saves
+   * eligible profile values and reviews items that need a user decision.
    */
   EXTRACT_CV(data: ExtractCvRequest): ExtractedProfileData;
   /**

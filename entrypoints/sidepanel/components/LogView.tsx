@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getEntries, clearLog, subscribe } from '@/lib/log';
 import type { LogEntry, LogLevel } from '@/lib/log';
-import { PanelButton } from './ui';
 
 const LEVEL_STYLES: Record<
   LogLevel,

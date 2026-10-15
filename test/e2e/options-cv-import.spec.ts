@@ -47,11 +47,13 @@ test.describe('importing a CV from the options page', () => {
     return { page, section };
   }
 
-  test('states the promise before a file is picked, and takes PDFs only', async () => {
+  test('states automatic profile saving before a file is picked, and takes PDFs only', async () => {
     const { section } = await openImportSection();
 
-    // Visible with no file chosen: the user reads this before deciding to upload.
-    await expect(section).toContainText('Nothing is written to your profile until you confirm it');
+    // Explain which extracted values are written automatically and which need
+    // the user's project ownership choice before they are saved.
+    await expect(section).toContainText('supported profile details are saved automatically');
+    await expect(section).toContainText('Project details wait until you tell us');
     await expect(section.locator('input[type=file]')).toHaveAttribute(
       'accept',
       '.pdf,application/pdf',
@@ -86,9 +88,10 @@ test.describe('importing a CV from the options page', () => {
     // `grep` finds it in background.js and nowhere else in the build.
     await expect(section.getByText(NO_KEY)).toBeVisible();
 
-    // And nothing was proposed or kept: no review list, and the picker is clear
-    // so the same file can be chosen again once a key is saved.
-    await expect(section.getByText('Nothing is saved until you press')).toHaveCount(0);
+    // The worker rejects before extraction without a key, so there is no
+    // automatic save or project review. The picker remains ready to try again.
+    await expect(section.getByText('Automatic save failed:')).toHaveCount(0);
+    await expect(section.getByText('Some details need your input:')).toHaveCount(0);
     await expect(section.locator('input[type=file]')).toHaveValue('');
   });
 

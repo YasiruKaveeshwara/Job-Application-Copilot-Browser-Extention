@@ -186,28 +186,32 @@ Two runs, because the second is the one that can go wrong quietly:
 
 1. Load `.output/chrome-mv3/` unpacked, open **Options**, paste your key.
 2. **First CV, empty profile.** Upload it under **Import from a CV**. Check
-   that every item is grouped under the right category, that nothing was
-   invented (each value traceable to a line in the document), and that every
-   item is marked **New** and ticked. Untick one, edit another, discard a third,
-   then **Confirm** — and check that exactly the ticked items landed in the form
-   above, with your edit and without the discarded one.
-3. **Second CV, over a section you filled in by hand.** Type something into
-   Personal and into one work-history entry, save, then upload the second CV.
-   Everything that would touch what you typed must appear as **Proposed change**
-   and be **unticked**, showing your value beside the CV's. Confirm with those
-   left unticked and check your text is still there afterwards.
-4. Re-upload the same CV once more: the review should come back empty
-   ("Nothing new"), not a duplicated profile.
+   that personal, education, work history, and skills are saved automatically,
+   grouped into their matching profile sections, with no values that cannot be
+   traced to the CV. Projects should remain in review until you choose solo or
+   team for each.
+3. **Second CV, over a section you filled in by hand.** Type a personal name
+   and a work-history entry, save, then upload the second CV. Confirm that
+   extracted personal values update automatically and non-duplicate education,
+   work-history, and skill entries are added without removing your existing
+   list entries.
+4. Re-upload the same CV once more: existing values and list entries should be
+   skipped rather than duplicated.
 5. Check the five exclusions are untouched — no project got an
    individual/group answer you did not pick, and `narrativeFragments`,
    `standardAnswers`, `stylePreferences`, and `resumeVariants` are as you left
    them.
 
-| CV                     | Categories correct | Nothing invented | Overwrite shown as a proposal | Re-import empty | Exclusions untouched | Notes |
-| ---------------------- | ------------------ | ---------------- | ----------------------------- | --------------- | -------------------- | ----- |
-| 1 (into empty profile) |                    |                  | n/a                           |                 |                      |       |
-| 2 (over manual entry)  |                    |                  |                               |                 |                      |       |
+If the selected model cannot handle the PDF request, the extension tries up to
+two other models discovered for the saved API key without changing the
+selection. A model request that does not respond is stopped after 30 seconds;
+the options page should show an actionable error rather than keep spinning.
 
-The mock extractor covers the mechanics of the review screen without a key —
+| CV                     | Categories correct | Nothing invented | Automatic update/addition correct | Re-import has no duplicates | Exclusions untouched | Notes |
+| ---------------------- | ------------------ | ---------------- | --------------------------------- | --------------------------- | -------------------- | ----- |
+| 1 (into empty profile) |                    |                  | n/a                               |                             |                      |       |
+| 2 (over manual entry)  |                    |                  |                                   |                             |                      |       |
+
+The mock extractor covers the automatic profile save and project review without a key —
 `VITE_USE_MOCK_GENERATOR=true npm run dev`, then upload any PDF — which is worth
 doing first to learn the screen before spending a request on it.

@@ -1,12 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { saveSettings, savePromptSettings } from '../../lib/storage';
+import { saveSettings, savePromptSettings, saveAvailableModels } from '../../lib/storage';
 import { DEFAULT_PROMPT_SETTINGS } from '../../lib/prompt-settings';
 import { GeminiExtractor, EXTRACTION_INSTRUCTION } from '../../lib/extractor/gemini-extractor';
 import { MockExtractor, MOCK_EXTRACTED_CV } from '../../lib/extractor/mock-extractor';
 import { MAX_PDF_BYTES, base64ByteLength, checkPdfSize } from '../../lib/extractor/types';
 import type { ProfileExtractor } from '../../lib/extractor/types';
-import { GEMINI_MODELS_BASE, generateContentUrl } from '../../lib/gemini-client';
+import {
+  GEMINI_MODELS_BASE,
+  GEMINI_REQUEST_TIMEOUT_MS,
+  generateContentUrl,
+} from '../../lib/gemini-client';
 import { GeneratorError } from '../../lib/generator/types';
 import type { ExtractedProfileData } from '../../lib/types';
 
@@ -259,6 +263,53 @@ describe('GeminiExtractor response handling', () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
     const error = await captureError(new GeminiExtractor().extract(PDF_BASE64));
     expect(error.kind).toBe('network');
+  });
+
+  it('tries an API-discovered fallback when the selected model rejects PDF input', async () => {
+    await saveAvailableModels([{ id: SECOND_MODEL_ID, label: 'Fallback model' }]);
+    fetchMock
+      .mockResolvedValueOnce(
+        httpError(400, { error: { code: 400, message: 'PDF input is not supported.' } }),
+      )
+      .mockResolvedValueOnce(geminiOk(JSON.stringify(extracted)));
+
+    await expect(new GeminiExtractor().extract(PDF_BASE64)).resolves.toEqual(extracted);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]![0]).toContain(`${MODEL_ID}:generateContent`);
+    expect(fetchMock.mock.calls[1]![0]).toContain(`${SECOND_MODEL_ID}:generateContent`);
+  });
+
+  it('aborts a model request that never responds instead of leaving extraction loading', async () => {
+    vi.useFakeTimers();
+    try {
+      let markFetchStarted = () => {};
+      const fetchStarted = new Promise<void>((resolve) => {
+        markFetchStarted = resolve;
+      });
+      fetchMock.mockImplementation(
+        (_input: RequestInfo | URL, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            markFetchStarted();
+            init?.signal?.addEventListener(
+              'abort',
+              () => reject(new DOMException('The request was aborted.', 'AbortError')),
+              { once: true },
+            );
+          }),
+      );
+
+      const pending = new GeminiExtractor().extract(PDF_BASE64);
+      const capturedError = captureError(pending);
+      await fetchStarted;
+      await vi.advanceTimersByTimeAsync(GEMINI_REQUEST_TIMEOUT_MS);
+      const error = await capturedError;
+
+      expect(error.kind).toBe('network');
+      expect(error.message).toContain('timed out');
+      expect(fetchMock).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

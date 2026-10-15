@@ -13,10 +13,10 @@ edit, and insert every answer yourself.
 - **AI semantic standard answer matching & paraphrasing** — saved standard answer templates (e.g. cover letters, motivation) are semantically matched to relevant fields and paraphrased to match the specific job title and company context with clean multi-paragraph letter formatting.
 - **Dynamic model discovery** — queries the Google Gemini API after a new API key is saved and on extension startup to discover the text generation models available to that key. The first choice is ranked from API-returned model family, version, and token-limit metadata; no model IDs are bundled as defaults.
 - **Persistent model selection** — newly discovered keys select the highest-ranked available model; a model you choose is saved locally and remains selected until you choose another model or save a different API key.
-- **Automatic model failover & recovery** — if a model is rate-limited (`HTTP 429`), decommissioned (`HTTP 404`), or overloaded (`HTTP 5xx`), the extension tries other models returned for that key for the current request without changing your saved selection.
+- **Automatic model failover & recovery** — if a model rejects a request (including PDF support), is rate-limited, or does not respond, the extension tries up to two other API-discovered models. Each attempt times out after 30 seconds; your saved selection is not changed.
 - **Editable AI prompts** — edit and save the seeded instructions for answer drafting, saved-answer matching, field relevance, and CV extraction from **Settings → Prompts**. Prompt text is stored locally; restore the original seeds at any time.
 - **Profile-driven drafts** — retrieves the most relevant fragments from your work history, projects, and skills for open-ended questions before calling the model.
-- **CV import with explicit confirmation** — upload a PDF CV and the model reads what it can off it; every extracted value is shown grouped by category, editable, and unticked wherever it would change something you typed. Nothing is saved until you confirm. See [Importing a CV](#importing-a-cv).
+- **CV import with automatic profile updates** — upload a PDF CV and the model reads profile data from it. Extracted personal, education, work history, and skills are saved automatically; project details wait for your solo/team choice. See [Importing a CV](#importing-a-cv).
 - **Bring-your-own-key** — your Gemini API key lives in local extension storage only. It is never synced to your browser account.
 - **Answer cache** — identical (field, role type, site) combinations reuse the previous draft until your profile changes or 7 days pass.
 - **Learned corrections** — manually correct a misclassified field label once and the correction is remembered per site.
@@ -97,21 +97,15 @@ Upload one under **Import from a CV**; the file is sent to the Gemini API with t
 same key as everything else, and the model returns whatever structured data it can
 read off the document.
 
-**Nothing is written to your profile until you confirm it.** What comes back is
-shown as a review list grouped by category — Personal, Education, Work history,
-Projects, Skills — where every value is editable in place and every item has a
-checkbox:
+After extraction, supported profile fields are saved automatically, including
+updates to existing personal values and new entries in education, work history,
+and skills. Identical values and entries are skipped, so importing the same CV
+again does not duplicate existing profile data.
 
-- A target that is **empty** yields a **New** item, ticked by default.
-- A target that **already has something in it** yields a **Proposed change**,
-  unticked, showing what is already saved next to what the CV says. Nothing is
-  ever replaced or quietly appended to a section you filled in by hand.
-- Anything the profile already holds — the same value, school, employer, project,
-  or skill — is left out, so re-importing the same CV produces an empty review
-  rather than a duplicated profile.
-
-Pressing **Confirm** applies only the ticked items and saves. Discarding the
-import, or closing the page, writes nothing.
+Project details are held for review because a CV cannot reliably tell whether a
+project was solo or team work. Choose an option for each project and press **Save
+remaining items**. If an automatic profile save fails, the extracted data is
+shown in the review so you can retry the save.
 
 ### What a CV import never touches
 
@@ -131,8 +125,8 @@ a slot for those fields, and a response that contains one is **rejected** rather
 than cleaned up ([lib/extractor/schema.ts](lib/extractor/schema.ts)), so a drifting
 prompt or a changed model cannot look like a correct one.
 
-Other non-goals: no auto-save at any point, no local PDF parsing (the model reads
-the document; the extension ships no PDF library), and no storage of the file —
+Other non-goals: no local PDF parsing (the model reads the document; the
+extension ships no PDF library), and no storage of the file —
 it is read once, in the background service worker, and not kept.
 
 ## Development commands
@@ -186,7 +180,7 @@ button to open the side panel, and press **Scan this page**.
 ## Dynamic Model Selection & Automatic Failover
 
 - **Dynamic Model Discovery:** Models are fetched from `GET /v1beta/models` after saving a new Gemini API key and on extension startup. The selector contains only generation-capable models returned for that key. The first result is ranked using generic model-family names, API version, and token limits.
-- **Automatic Model Failover:** If the selected model experiences **Quota Exceeded (`HTTP 429`)**, **Model Deprecation / Not Found (`HTTP 404`)**, or **Server Overloaded (`HTTP 5xx`)**, the extension tries other models returned for the key for that request. This does not replace the saved selection.
+- **Automatic Model Failover:** If the selected model rejects a request (including unsupported PDF input), is rate-limited, or does not respond, the extension tries up to two other models returned for the key. Each attempt times out after 30 seconds. This does not replace the saved selection.
 - **Custom Model Support:** Any custom model identifier can still be entered or saved directly.
 
 ## Editing AI prompts
@@ -294,7 +288,7 @@ git checkout -- wxt.config.ts entrypoints/content.ts && npm run build
 - **No auto-submit.** The extension never submits a form on your behalf.
 - **No bulk / mass application.** One page, one review, one insert at a time.
 - **No stored resume file.** A CV you import is sent to the Gemini API to be read once and is not kept by the extension; resume variant entries store a file reference only, and no file is ever attached to a form for you.
-- **No auto-filled profile.** Imported data is a proposal until you tick and confirm it — see [Importing a CV](#importing-a-cv).
+- **No auto-filled application fields.** Imported CV data updates your local profile as described above; the extension never inserts answers into job-site forms automatically.
 
 ## Real-world validation log (Phase 17)
 

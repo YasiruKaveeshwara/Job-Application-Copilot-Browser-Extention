@@ -22,6 +22,10 @@ import { GeneratorError } from './generator/types';
 
 export const GEMINI_MODELS_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+export const GEMINI_REQUEST_TIMEOUT_MS = 30_000;
+
+const MAX_MODEL_ATTEMPTS = 3;
+
 /** Full endpoint for one model. The model ID travels in the path, not the body. */
 export function generateContentUrl(modelId: string): string {
   return `${GEMINI_MODELS_BASE}/${encodeURIComponent(modelId)}:generateContent`;
@@ -96,92 +100,108 @@ export async function getModelCandidates(preferredModelId: string): Promise<stri
  * Send one `generateContent` request and return the model's text.
  *
  * If the current model fails with quota exceeded (429), model not found/unsupported (404/400),
- * or server error (5xx), automatically fails over to the next best available model.
+ * a network error, or a timeout, automatically tries up to two more models
+ * discovered using the user's API key. Every attempt is bounded by a timeout.
  * A fallback is used for this request only; it never changes the user's selected
  * model preference.
  */
 export async function callGemini(body: unknown): Promise<string> {
   const settings = await loadGeminiSettings();
-  const candidateModels = await getModelCandidates(settings.modelId);
+  const candidateModels = (await getModelCandidates(settings.modelId)).slice(0, MAX_MODEL_ATTEMPTS);
 
   let lastError: GeneratorError | undefined;
 
   for (let i = 0; i < candidateModels.length; i++) {
     const modelId = candidateModels[i]!;
-    let response: Response;
-
     try {
-      response = await fetch(generateContentUrl(modelId), {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          // In a header, never the query string, so the key stays out of URLs,
-          // logs, and anything that reports a failing request URL.
-          'x-goog-api-key': settings.apiKey,
-        },
-        body: JSON.stringify(body),
-      });
-    } catch (cause) {
-      lastError = new GeneratorError(
-        'network',
-        `Could not reach the Gemini API: ${messageOf(cause)}`,
-        {
-          cause,
-        },
-      );
-      // If there are more models to try, continue; otherwise throw
-      if (i < candidateModels.length - 1) {
-        console.warn(
-          `[job-copilot] Network error on model "${modelId}". Trying next fallback model...`,
-        );
-        continue;
-      }
-      throw lastError;
-    }
+      return await requestGeminiModel(modelId, settings.apiKey, body);
+    } catch (caught) {
+      lastError =
+        caught instanceof GeneratorError
+          ? caught
+          : new GeneratorError('network', `Could not reach the Gemini API: ${messageOf(caught)}`, {
+              cause: caught,
+            });
 
-    if (!response.ok) {
-      const errorMsg = await readApiErrorMessage(response);
-      lastError = new GeneratorError(
-        'http',
-        `Gemini API returned ${response.status} — ${errorMsg}`,
-        { status: response.status },
-      );
-
-      // HTTP 401 indicates the API key itself is invalid. Trying other models will also 401.
-      if (response.status === 401) {
+      // An invalid key is independent of the model. Other transport and HTTP
+      // failures may be specific to this model or to its PDF/schema support.
+      if (lastError.kind === 'http' && lastError.status === 401) {
         throw lastError;
       }
 
-      // If status is 429 (quota/rate limit), 404 (model not found), 400 (bad model),
-      // or 5xx (overloaded), try fallback model if available
-      if (i < candidateModels.length - 1) {
-        const nextModel = candidateModels[i + 1];
-        console.warn(
-          `[job-copilot] Model "${modelId}" failed with HTTP ${response.status} (${errorMsg}). Automatically failing over to "${nextModel}"...`,
-        );
-        continue;
+      const canTryFallback =
+        lastError.kind === 'network' ||
+        lastError.kind === 'http' ||
+        lastError.message === 'Gemini API response body was not JSON';
+      if (!canTryFallback || i === candidateModels.length - 1) {
+        throw lastError;
       }
 
-      throw lastError;
+      const nextModel = candidateModels[i + 1];
+      console.warn(
+        `[job-copilot] Model "${modelId}" failed (${lastError.message}). Automatically trying "${nextModel}"...`,
+      );
+    }
+  }
+
+  throw lastError ?? new GeneratorError('response', 'All available Gemini models failed.');
+}
+
+async function requestGeminiModel(modelId: string, apiKey: string, body: unknown): Promise<string> {
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      reject(new GeneratorError('network', 'Gemini request timed out.'));
+    }, GEMINI_REQUEST_TIMEOUT_MS);
+  });
+
+  const request = async (): Promise<string> => {
+    const response = await fetch(generateContentUrl(modelId), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        // In a header, never the query string, so the key stays out of URLs,
+        // logs, and anything that reports a failing request URL.
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorMsg = await readApiErrorMessage(response);
+      throw new GeneratorError('http', `Gemini API returned ${response.status} — ${errorMsg}`, {
+        status: response.status,
+      });
     }
 
     let payload: GeminiResponse;
     try {
       payload = (await response.json()) as GeminiResponse;
     } catch (cause) {
-      lastError = new GeneratorError('response', 'Gemini API response body was not JSON', {
-        cause,
-      });
-      if (i < candidateModels.length - 1) {
-        continue;
-      }
-      throw lastError;
+      throw new GeneratorError('response', 'Gemini API response body was not JSON', { cause });
     }
 
     return extractText(payload);
-  }
+  };
 
-  throw lastError ?? new GeneratorError('response', 'All available Gemini models failed.');
+  try {
+    return await Promise.race([request(), timeout]);
+  } catch (cause) {
+    if (cause instanceof GeneratorError) throw cause;
+    if (timedOut) {
+      throw new GeneratorError('network', 'Gemini request timed out.', { cause });
+    }
+    throw new GeneratorError('network', `Could not reach the Gemini API: ${messageOf(cause)}`, {
+      cause,
+    });
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
 }
 
 /**

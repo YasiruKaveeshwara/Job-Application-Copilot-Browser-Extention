@@ -89,8 +89,9 @@ export default defineBackground(() => {
   // A CV the user uploaded on the options page. Wired straight to the extractor
   // because there is nothing to orchestrate — one request, one answer — and it
   // runs here rather than in the page so the API key and the provider endpoint
-  // stay in this bundle. Nothing is saved: the reply is data for the review
-  // screen, which writes only what the user then ticks.
+  // stay in this bundle. The worker returns extracted data without persisting
+  // it; the options page saves eligible profile values and reviews items that
+  // still need a user decision.
   //
   // Failures go through the same wording as a generation failure, so a wrong key
   // or an unreachable API reads the same on the options page as it does in the

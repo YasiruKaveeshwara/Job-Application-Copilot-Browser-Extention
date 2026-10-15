@@ -11,6 +11,7 @@ import {
   buildReviewItems,
   canAccept,
   discardItem,
+  itemsForAutomaticSave,
   setCategoryAccepted,
   setChoiceValue,
   setFieldValue,
@@ -32,6 +33,8 @@ export function CvImportSection({
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [automaticSaveFailed, setAutomaticSaveFailed] = useState(false);
+  const [automaticallySavedCount, setAutomaticallySavedCount] = useState(0);
   const [applying, setApplying] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -42,12 +45,16 @@ export function CvImportSection({
   const clearReview = () => {
     setItems([]);
     setStage('idle');
+    setAutomaticSaveFailed(false);
+    setAutomaticallySavedCount(0);
   };
 
   const handleFile = async (file: File | undefined) => {
     if (file === undefined) return;
     setError(null);
     setNotice(null);
+    setAutomaticSaveFailed(false);
+    setAutomaticallySavedCount(0);
 
     const problem = checkPdfFile(file);
     if (problem !== undefined) {
@@ -56,18 +63,57 @@ export function CvImportSection({
     }
 
     setStage('busy');
+    let itemsToReviewOnFailure: ReviewItem[] = [];
     try {
       const pdfBase64 = await readPdfAsBase64(file);
       const extracted = await sendMessage('EXTRACT_CV', { pdfBase64 });
       const built = buildReviewItems(value, extracted);
-      setItems(built);
-      setStage(built.length > 0 ? 'review' : 'idle');
       if (built.length === 0) {
+        setItems([]);
+        setStage('idle');
         setNotice('Nothing new — everything in that CV is already in your profile.');
+        return;
+      }
+
+      const automatic = itemsForAutomaticSave(built);
+      const autoSavedIds = new Set(automatic.map((item) => item.id));
+      const pending = built
+        .filter((item) => !autoSavedIds.has(item.id))
+        .map((item) => ({ ...item, accepted: true }));
+      itemsToReviewOnFailure = built.map((item) => ({ ...item, accepted: true }));
+
+      if (automatic.length > 0) {
+        try {
+          await onApply(applyReview(value, automatic));
+          setAutomaticallySavedCount(automatic.length);
+        } catch (caught) {
+          setAutomaticSaveFailed(true);
+          throw caught;
+        }
+      }
+
+      setItems(pending);
+      setStage(pending.length > 0 ? 'review' : 'idle');
+
+      if (pending.length > 0) {
+        const savedNotice =
+          automatic.length > 0
+            ? `Saved ${automatic.length} extracted ${automatic.length === 1 ? 'item' : 'items'}. `
+            : '';
+        setNotice(`${savedNotice}Review the remaining details that need your input.`);
+      } else {
+        setNotice(
+          `Saved ${automatic.length} extracted ${automatic.length === 1 ? 'item' : 'items'} to your profile.`,
+        );
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not read that CV.');
-      setStage('idle');
+      if (itemsToReviewOnFailure.length > 0) {
+        setItems(itemsToReviewOnFailure);
+        setStage('review');
+      } else {
+        setStage('idle');
+      }
     } finally {
       if (inputRef.current !== null) inputRef.current.value = '';
     }
@@ -80,6 +126,8 @@ export function CvImportSection({
     try {
       await onApply(applyReview(value, items));
       setNotice(`Saved ${count} ${count === 1 ? 'item' : 'items'} to your profile.`);
+      setAutomaticSaveFailed(false);
+      setAutomaticallySavedCount(0);
       clearReview();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not save those items.');
@@ -92,7 +140,7 @@ export function CvImportSection({
     <Section
       title="Import from a CV"
       badge="PDF Parsing"
-      description={`Upload a PDF CV and the model reads what it can off it. Nothing is written to your profile until you confirm it below. PDFs up to ${MAX_PDF_LABEL}; the document is sent to the Gemini API and not stored anywhere else.`}
+      description={`Upload a PDF CV and supported profile details are saved automatically. Project details wait until you tell us whether each project was solo or team work. PDFs up to ${MAX_PDF_LABEL}; the document is sent to the Gemini API and not stored anywhere else.`}
       icon={
         <svg
           className="h-4 w-4"
@@ -136,14 +184,29 @@ export function CvImportSection({
           className="absolute inset-0 cursor-pointer opacity-0"
         />
 
-        <div className={`flex h-10 w-10 items-center justify-center rounded-xl mb-3 transition-all ${dragOver ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+        <div
+          className={`flex h-10 w-10 items-center justify-center rounded-xl mb-3 transition-all ${dragOver ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}
+        >
           {stage === 'busy' ? (
             <svg className="h-5 w-5 animate-spin text-indigo-600" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="3"
+              ></circle>
               <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
             </svg>
           ) : (
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" y1="3" x2="12" y2="15" />
@@ -151,13 +214,14 @@ export function CvImportSection({
           )}
         </div>
 
-        <p className="text-[12px] font-bold text-slate-800">
+        <p role="status" aria-live="polite" className="text-[12px] font-bold text-slate-800">
           {stage === 'busy'
-            ? 'Extracting resume details with AI…'
+            ? 'Reading your CV with Gemini; trying other models if needed…'
             : 'Drop your Resume PDF here'}
         </p>
         <p className="mt-1 text-[11px] text-slate-500">
-          or <span className="font-semibold text-indigo-600">browse files</span> · PDF only · Max {MAX_PDF_LABEL}
+          or <span className="font-semibold text-indigo-600">browse files</span> · PDF only · Max{' '}
+          {MAX_PDF_LABEL}
         </p>
       </div>
 
@@ -176,9 +240,19 @@ export function CvImportSection({
       {stage === 'review' && (
         <div className="space-y-4 pt-2">
           <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900 leading-relaxed">
-            <span className="font-bold">Review extracted items:</span> Nothing is saved until you
-            click <span className="font-semibold text-amber-950">Confirm & Save</span> below. You
-            can edit, untick, or discard any item.
+            {automaticSaveFailed ? (
+              <>
+                <span className="font-bold">Automatic save failed:</span> Review the extracted
+                values and use the save button below to retry.
+              </>
+            ) : (
+              <>
+                <span className="font-bold">Some details need your input:</span>{' '}
+                {automaticallySavedCount === 0
+                  ? 'Complete required choices or missing information, then save the remaining items.'
+                  : 'Other extracted profile fields have already been saved. Complete required choices or missing information, then save the remaining items.'}
+              </>
+            )}
           </div>
 
           {CATEGORY_ORDER.map((category) => {
@@ -241,7 +315,7 @@ export function CvImportSection({
             >
               {applying
                 ? 'Saving…'
-                : `Confirm and save ${accepted.length} ${accepted.length === 1 ? 'item' : 'items'}`}
+                : `Save ${accepted.length} remaining ${accepted.length === 1 ? 'item' : 'items'}`}
             </Button>
             <Button variant="secondary" onClick={clearReview} disabled={applying}>
               Discard import

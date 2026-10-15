@@ -35,6 +35,9 @@ export function describeGenerationFailure(error: unknown): string {
       // already words it as an instruction ("Add one on the options page").
       return error.message;
     case 'network':
+      if (error.message === 'Gemini request timed out.') {
+        return 'Gemini took too long to respond. Try again or select another model in the extension options.';
+      }
       return 'Could not reach the Gemini API. Check your connection and try again.';
     case 'http':
       return describeHttpFailure(error);
@@ -50,7 +53,7 @@ export function describeGenerationFailure(error: unknown): string {
 function describeHttpFailure(error: GeneratorError): string {
   const status = error.status;
   if (status === 400) {
-    return 'Gemini rejected the request (HTTP 400). The model ID in the extension options may be wrong.';
+    return 'Gemini rejected the request for this model (HTTP 400). Try another model in the extension options.';
   }
   if (status === 401 || status === 403) {
     return `Gemini rejected the API key (HTTP ${status}). Check the key in the extension options.`;

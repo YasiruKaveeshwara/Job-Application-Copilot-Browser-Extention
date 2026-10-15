@@ -8,6 +8,7 @@ import {
   canAccept,
   discardItem,
   fieldValue,
+  itemsForAutomaticSave,
   setCategoryAccepted,
   setChoiceValue,
   setFieldValue,
@@ -16,9 +17,8 @@ import {
 import type { ReviewItem } from '../../lib/extractor/merge';
 import type { ExtractedProfileData, ProfileData } from '../../lib/types';
 
-// The review model, which is where the feature's promise lives: nothing reaches
-// the profile except through applyReview, and applyReview only copies values out
-// of items the user ticked.
+// Import merging is pure and deterministic: auto-save eligibility is separate
+// from applying the extracted values to a profile.
 
 function filledProfile(): ProfileData {
   return {
@@ -171,6 +171,44 @@ describe('buildReviewItems — a profile with content already in it', () => {
 
   it('produces nothing at all from an empty extraction', () => {
     expect(buildReviewItems(profile, {})).toEqual([]);
+  });
+});
+
+describe('automatic CV import saves', () => {
+  it('includes new and changed non-project data, but leaves project decisions for the user', () => {
+    const items = buildReviewItems(filledProfile(), MOCK_EXTRACTED_CV);
+    const automatic = itemsForAutomaticSave(items);
+
+    expect(automatic.length).toBeGreaterThan(0);
+    expect(automatic.every((item) => item.category !== 'projects' && item.accepted)).toBe(true);
+    expect(automatic.some((item) => item.id === 'personal:name')).toBe(true);
+    expect(automatic.some((item) => item.id === 'education:0')).toBe(true);
+    expect(automatic.some((item) => item.id === 'skills:0')).toBe(true);
+    expect(automatic.some((item) => item.category === 'projects')).toBe(false);
+  });
+
+  it('applies extracted personal updates and non-duplicate list entries immediately', () => {
+    const profile = filledProfile();
+    const automatic = itemsForAutomaticSave(buildReviewItems(profile, MOCK_EXTRACTED_CV));
+    const saved = applyReview(profile, automatic);
+
+    expect(saved.personal.name).toBe('Mock Candidate');
+    expect(saved.education).toHaveLength(
+      profile.education.length + MOCK_EXTRACTED_CV.education!.length,
+    );
+    expect(saved.workHistory).toHaveLength(
+      profile.workHistory.length + MOCK_EXTRACTED_CV.workHistory!.length,
+    );
+    expect(saved.skills).toContain('TypeScript');
+    expect(saved.projects).toEqual(profile.projects);
+  });
+
+  it('leaves incomplete non-project data for manual completion', () => {
+    const items = buildReviewItems(emptyProfile(), {
+      education: [{ institution: '', program: 'Mathematics', dates: '1840' }],
+    });
+    expect(items).toHaveLength(1);
+    expect(itemsForAutomaticSave(items)).toEqual([]);
   });
 });
 

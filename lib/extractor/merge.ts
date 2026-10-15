@@ -1,20 +1,19 @@
 import type { ExtractedProfileData, ProfileData } from '../types';
 
-// The review model: what the user is shown after a CV is read, and what happens
-// to the profile when they confirm it.
+// The import model: extracted values, automatic-save eligibility, and project
+// details that need a user-provided solo/team choice.
 //
 // Pure functions over plain data, in a .ts module rather than inside the React
 // section, for the reason the build guide gives (section 0, rule 6) and because
-// this is where the feature's one promise is kept: nothing reaches storage except
-// through `applyReview`, and `applyReview` only ever copies values out of items
-// the user has ticked. There is no other write path.
+// this is where the write boundary is kept: values reach storage only through
+// `applyReview`. The automatic-save path accepts eligible extracted items;
+// projects require the user's solo/team choice before they can be accepted.
 //
 // Two rules from the specification are structural here rather than advisory:
 //
-//   * A target that is empty produces a "New" item, accepted by default. A target
-//     that already has content produces a "Proposed change" that shows what is
-//     there and starts unticked — so a CV can never quietly replace something the
-//     user typed, and for list sections it cannot quietly pile onto it either.
+//   * New extracted values are saved automatically. A differing personal value
+//     replaces the current value; new list entries append only when not already
+//     present. Identical values and entries are ignored.
 //   * Five things never come from a CV: a project's `individualOrGroup`, and all
 //     of `narrativeFragments`, `standardAnswers`, `stylePreferences`,
 //     `resumeVariants`. The first is asked as a per-project question because the
@@ -183,7 +182,7 @@ function same(a: string, b: string): boolean {
 }
 
 /**
- * Turn an extraction into the list the review screen shows.
+ * Turn an extraction into structured profile items.
  *
  * Anything already in the profile is left out rather than shown as a change to
  * itself: a value identical to the stored one, a school or employer or project
@@ -329,6 +328,17 @@ export function buildReviewItems(
   return items;
 }
 
+/**
+ * Items that can be saved directly from an extraction without inventing a
+ * value the CV cannot establish. Project entries are excluded because their
+ * required solo/team choice must come from the user.
+ */
+export function itemsForAutomaticSave(items: ReviewItem[]): ReviewItem[] {
+  return items
+    .filter((item) => item.category !== 'projects' && canAccept(item))
+    .map((item) => ({ ...item, accepted: true }));
+}
+
 // ---------------------------------------------------------------------------
 // Editing the review list (immutable, so React state updates are plain
 // assignments and the logic stays testable outside a component)
@@ -381,14 +391,14 @@ export function discardItem(items: ReviewItem[], id: string): ReviewItem[] {
 // ---------------------------------------------------------------------------
 
 /**
- * The profile as it would be with every ticked item applied — the only function
- * in the feature that turns extracted data into profile data.
+ * The profile as it would be with every accepted item applied — the only
+ * function in the feature that turns extracted data into profile data.
  *
  * Returns a new object; the input is not modified, so a caller can show the
  * result before saving it. Unticked items, and every section the specification
  * puts off limits, are copied through as they were.
  *
- * Throws if a ticked item is not complete ({@link canAccept}). That state is
+ * Throws if an accepted item is not complete ({@link canAccept}). That state is
  * unreachable from the UI, which keeps Confirm disabled while
  * {@link blockedItems} is non-empty — so if it ever happens the honest outcome is
  * an error, not a save that silently leaves an item out.

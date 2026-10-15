@@ -367,7 +367,7 @@ describe('describeGenerationFailure', () => {
     const http = (status: number) =>
       describeGenerationFailure(new GeneratorError('http', 'Gemini request failed.', { status }));
 
-    expect(http(400)).toMatch(/model ID/);
+    expect(http(400)).toMatch(/Try another model/);
     expect(http(401)).toMatch(/rejected the API key/);
     expect(http(403)).toMatch(/rejected the API key/);
     expect(http(404)).toMatch(/does not recognise that model/);
@@ -380,6 +380,12 @@ describe('describeGenerationFailure', () => {
     expect(describeGenerationFailure(new GeneratorError('network', 'boom'))).toMatch(
       /Could not reach the Gemini API/,
     );
+  });
+
+  it('suggests a different model when a Gemini request times out', () => {
+    expect(
+      describeGenerationFailure(new GeneratorError('network', 'Gemini request timed out.')),
+    ).toMatch(/too long to respond.*select another model/i);
   });
 
   it('passes through a response-shape failure, which never quotes model output', () => {
