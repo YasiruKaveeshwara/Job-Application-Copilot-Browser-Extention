@@ -13,7 +13,6 @@ import {
 } from '../../lib/cache';
 import type { CacheInputs } from '../../lib/cache';
 import { emptyProfile } from '../../lib/storage';
-import { DEFAULT_MODEL_ID } from '../../lib/storage';
 import type { GeneratedAnswer, JobContext } from '../../lib/types';
 
 // Phase 15. Two properties matter: a draft comes back only when everything that
@@ -33,7 +32,7 @@ function inputs(overrides: Partial<CacheInputs> = {}): CacheInputs {
     fragments: ['Project "Trailmark": shipped a React Native app to both stores'],
     style: emptyProfile().stylePreferences,
     hint: '',
-    modelId: DEFAULT_MODEL_ID,
+    modelId: 'gemini-test-model',
     ...overrides,
   };
 }

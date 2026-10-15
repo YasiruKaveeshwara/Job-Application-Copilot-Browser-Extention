@@ -6,6 +6,7 @@ import {
   emptyProfile,
   getSettings,
   saveSettings,
+  saveAvailableModels,
   defaultSettings,
 } from '@/lib/storage';
 import { ApiSettingsSection } from '@/entrypoints/options/components/ApiSettingsSection';
@@ -36,6 +37,8 @@ const TABS: { id: SettingsTab; label: string; icon: string }[] = [
 export function SettingsView({ onBack }: { onBack: () => void }) {
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [savedApiKey, setSavedApiKey] = useState('');
+  const [autoDiscoverKey, setAutoDiscoverKey] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [activeTab, setActiveTab] = useState<SettingsTab>('all');
@@ -47,6 +50,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         if (active) {
           setProfile(storedProfile);
           setSettings(storedSettings);
+          setSavedApiKey(storedSettings.apiKey.trim());
           setLoaded(true);
         }
       })
@@ -70,8 +74,22 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
 
   const handleSave = async () => {
     setStatus('saving');
+    const apiKey = settings.apiKey.trim();
+    const keyChanged = apiKey !== savedApiKey;
+    const settingsToSave = {
+      ...settings,
+      apiKey,
+      modelId: keyChanged ? '' : settings.modelId,
+    };
     try {
-      await Promise.all([saveProfile(profile), saveSettings(settings)]);
+      await Promise.all([
+        saveProfile(profile),
+        saveSettings(settingsToSave),
+        ...(keyChanged ? [saveAvailableModels([])] : []),
+      ]);
+      setSettings(settingsToSave);
+      setSavedApiKey(apiKey);
+      if (keyChanged && apiKey) setAutoDiscoverKey(apiKey);
       setStatus('saved');
     } catch {
       setStatus('error');
@@ -213,7 +231,12 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
       {/* Scrollable Form Content */}
       <main className="flex-1 space-y-3 p-3 pb-12">
         {(activeTab === 'all' || activeTab === 'api') && (
-          <ApiSettingsSection value={settings} onChange={patchSettings} />
+          <ApiSettingsSection
+            value={settings}
+            onChange={patchSettings}
+            savedApiKey={savedApiKey}
+            autoDiscoverKey={autoDiscoverKey}
+          />
         )}
         {(activeTab === 'all' || activeTab === 'cv') && (
           <CvImportSection value={profile} onApply={handleImport} />

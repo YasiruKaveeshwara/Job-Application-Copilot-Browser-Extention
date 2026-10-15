@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Settings, ModelChoice } from '@/lib/types';
-import { getAvailableModels, DEFAULT_AVAILABLE_MODELS } from '@/lib/storage';
+import { getAvailableModels, saveAvailableModels, saveSettings } from '@/lib/storage';
 import { sendMessage } from '@/lib/messaging';
 import { Section, TextInput } from './primitives';
 
@@ -10,53 +10,59 @@ const SELECT_CLASSES =
 export function ApiSettingsSection({
   value,
   onChange,
+  savedApiKey,
+  autoDiscoverKey,
 }: {
   value: Settings;
   onChange: (v: Settings) => void;
+  savedApiKey: string;
+  autoDiscoverKey: string;
 }) {
-  const [models, setModels] = useState<ModelChoice[]>(DEFAULT_AVAILABLE_MODELS);
+  const [models, setModels] = useState<ModelChoice[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const hasKey = value.apiKey.trim().length > 0;
+  const keyIsSaved = value.apiKey.trim() === savedApiKey;
 
-  // Load cached models from storage on mount
+  // Load models previously discovered for the saved API key.
   useEffect(() => {
     let active = true;
     getAvailableModels()
       .then((stored) => {
-        if (active && stored && stored.length > 0) {
+        if (active) {
           setModels(stored);
         }
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        if (active) {
+          setRefreshError(error instanceof Error ? error.message : 'Could not load saved models');
+        }
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  const handleRefreshModels = async () => {
-    if (!hasKey) {
-      setRefreshError('Please enter an API key first');
-      setRefreshMessage(null);
-      return;
-    }
-
+  const refreshModels = async (apiKey: string, chooseRecommended: boolean) => {
     setIsRefreshing(true);
     setRefreshMessage(null);
     setRefreshError(null);
+    if (chooseRecommended) setModels([]);
 
     try {
+      if (chooseRecommended) await saveAvailableModels([]);
       const fetched = await sendMessage('FETCH_AVAILABLE_MODELS', {
-        apiKey: value.apiKey.trim(),
+        apiKey,
       });
       if (fetched && fetched.length > 0) {
         setModels(fetched);
         setRefreshMessage(`✓ Found ${fetched.length} available models`);
-        // If current model is not in fetched list, switch to the first (top recommended) model
-        if (!fetched.some((m) => m.id === value.modelId)) {
-          onChange({ ...value, modelId: fetched[0]!.id });
+        if (chooseRecommended || !value.modelId.trim()) {
+          const nextSettings = { ...value, apiKey, modelId: fetched[0]!.id };
+          onChange(nextSettings);
+          await saveSettings(nextSettings);
         }
       } else {
         setRefreshError('No generation models returned for this key');
@@ -66,6 +72,42 @@ export function ApiSettingsSection({
       setRefreshError(msg);
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  // Saving a different API key always discovers that key's models and selects
+  // the highest-ranked result returned by the API.
+  useEffect(() => {
+    if (!autoDiscoverKey || autoDiscoverKey !== savedApiKey) return;
+    void refreshModels(autoDiscoverKey, true);
+    // Run only when the parent confirms a new key has been saved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoDiscoverKey, savedApiKey]);
+
+  const handleRefreshModels = async () => {
+    if (!hasKey) {
+      setRefreshError('Please enter an API key first');
+      setRefreshMessage(null);
+      return;
+    }
+    if (!keyIsSaved) {
+      setRefreshError('Save the new API key before refreshing its models');
+      setRefreshMessage(null);
+      return;
+    }
+    await refreshModels(value.apiKey.trim(), false);
+  };
+
+  const handleModelChange = async (modelId: string) => {
+    const nextSettings = { ...value, modelId };
+    onChange(nextSettings);
+    if (!keyIsSaved || !savedApiKey) return;
+
+    setRefreshError(null);
+    try {
+      await saveSettings({ ...nextSettings, apiKey: savedApiKey });
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : 'Could not save model selection');
     }
   };
 
@@ -108,7 +150,7 @@ export function ApiSettingsSection({
             <button
               type="button"
               onClick={handleRefreshModels}
-              disabled={isRefreshing || !hasKey}
+              disabled={isRefreshing || !hasKey || !keyIsSaved}
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               title="Query Gemini API for models available on your account"
             >
@@ -135,12 +177,13 @@ export function ApiSettingsSection({
 
         <select
           value={value.modelId}
-          onChange={(e) => onChange({ ...value, modelId: e.target.value })}
+          onChange={(e) => void handleModelChange(e.target.value)}
+          disabled={!hasKey || !keyIsSaved || isRefreshing}
           className={SELECT_CLASSES}
         >
           {!isKnownModel && (
             <option value={value.modelId}>
-              {value.modelId ? `${value.modelId} (custom / current)` : 'Select a model...'}
+              {value.modelId ? `${value.modelId} (current selection)` : 'Select a model...'}
             </option>
           )}
           {models.map((choice) => (
@@ -149,6 +192,10 @@ export function ApiSettingsSection({
             </option>
           ))}
         </select>
+        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+          A new API key automatically loads its available models and selects the top-ranked option.
+          Your later selection is saved automatically.
+        </p>
       </label>
 
       <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-xs flex items-center justify-between gap-3">
@@ -163,7 +210,11 @@ export function ApiSettingsSection({
         >
           Get Key
           <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M5.22 14.78a.75.75 0 0 0 1.06 0l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-7.5a.75.75 0 0 0-.75-.75h-7.5a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 0 0 0 1.06Z" clipRule="evenodd" />
+            <path
+              fillRule="evenodd"
+              d="M5.22 14.78a.75.75 0 0 0 1.06 0l7.22-7.22v5.69a.75.75 0 0 0 1.5 0v-7.5a.75.75 0 0 0-.75-.75h-7.5a.75.75 0 0 0 0 1.5h5.69l-7.22 7.22a.75.75 0 0 0 0 1.06Z"
+              clipRule="evenodd"
+            />
           </svg>
         </a>
       </div>

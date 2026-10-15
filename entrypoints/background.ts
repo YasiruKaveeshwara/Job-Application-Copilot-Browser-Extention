@@ -5,7 +5,7 @@ import { saveFieldMapping } from '../lib/mapping-cache';
 import { getExtractor } from '../lib/extractor';
 import { filterByAI } from '../lib/field-relevance';
 import { fetchGeminiModels } from '../lib/gemini-client';
-import { getSettings, getAvailableModels, saveAvailableModels } from '../lib/storage';
+import { getSettings, saveSettings, getAvailableModels, saveAvailableModels } from '../lib/storage';
 import { usingMockGenerator } from '../lib/generator';
 import type { ModelChoice } from '../lib/types';
 
@@ -57,9 +57,7 @@ function bindSidePanelToToolbarIcon(): void {
  */
 async function refreshAvailableModels(explicitApiKey?: string): Promise<ModelChoice[]> {
   const models = await fetchGeminiModels(explicitApiKey);
-  if (models.length > 0) {
-    await saveAvailableModels(models);
-  }
+  await saveAvailableModels(models);
   return models;
 }
 
@@ -125,7 +123,10 @@ export default defineBackground(() => {
     try {
       const settings = await getSettings();
       if (settings.apiKey.trim().length > 0) {
-        await refreshAvailableModels(settings.apiKey);
+        const models = await refreshAvailableModels(settings.apiKey);
+        if (!settings.modelId.trim() && models.length > 0) {
+          await saveSettings({ ...settings, modelId: models[0]!.id });
+        }
       }
     } catch (error) {
       console.warn('[job-copilot] could not sync models on startup', error);

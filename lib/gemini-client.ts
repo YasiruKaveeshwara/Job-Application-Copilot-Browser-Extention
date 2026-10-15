@@ -1,11 +1,5 @@
 import type { Settings, ModelChoice } from './types';
-import {
-  getSettings,
-  saveSettings,
-  DEFAULT_MODEL_ID,
-  getAvailableModels,
-  DEFAULT_AVAILABLE_MODELS,
-} from './storage';
+import { getSettings, getAvailableModels } from './storage';
 import { GeneratorError } from './generator/types';
 
 // The Gemini transport: URL, auth, HTTP and response-shape handling, in one
@@ -74,8 +68,7 @@ export async function loadGeminiSettings(): Promise<Settings> {
 /**
  * Build the ordered list of models to try:
  * 1. Current selected model in settings
- * 2. Stored available models (excluding current)
- * 3. Fallback default models (excluding already listed)
+ * 2. Other models discovered using the user's API key
  */
 export async function getModelCandidates(preferredModelId: string): Promise<string[]> {
   const candidates: string[] = [];
@@ -96,10 +89,6 @@ export async function getModelCandidates(preferredModelId: string): Promise<stri
     // Best effort if storage read fails
   }
 
-  for (const choice of DEFAULT_AVAILABLE_MODELS) {
-    add(choice.id);
-  }
-
   return candidates;
 }
 
@@ -108,7 +97,8 @@ export async function getModelCandidates(preferredModelId: string): Promise<stri
  *
  * If the current model fails with quota exceeded (429), model not found/unsupported (404/400),
  * or server error (5xx), automatically fails over to the next best available model.
- * If a fallback model succeeds, automatically updates the active model setting.
+ * A fallback is used for this request only; it never changes the user's selected
+ * model preference.
  */
 export async function callGemini(body: unknown): Promise<string> {
   const settings = await loadGeminiSettings();
@@ -186,18 +176,6 @@ export async function callGemini(body: unknown): Promise<string> {
         continue;
       }
       throw lastError;
-    }
-
-    // If candidate model worked and was a fallback, update active setting
-    if (modelId !== settings.modelId) {
-      console.info(
-        `[job-copilot] Fallback model "${modelId}" succeeded. Updating active model setting.`,
-      );
-      try {
-        await saveSettings({ ...settings, modelId });
-      } catch {
-        // Non-fatal if setting save fails
-      }
     }
 
     return extractText(payload);
@@ -334,7 +312,7 @@ export async function fetchGeminiModels(explicitApiKey?: string): Promise<ModelC
     return [];
   }
 
-  const choices: ModelChoice[] = generationModels.map((m) => {
+  const toChoice = (m: RawGeminiModel): ModelChoice => {
     const id = m.name.replace(/^models\//, '');
     const displayName = m.displayName?.trim();
     let label = displayName && displayName.length > 0 ? `${displayName} (${id})` : id;
@@ -346,22 +324,45 @@ export async function fetchGeminiModels(explicitApiKey?: string): Promise<ModelC
       label,
       description: m.description,
     };
+  };
+  const capabilityRank = (model: RawGeminiModel): number => {
+    const description = `${model.displayName ?? ''} ${model.name}`.toLowerCase();
+    if (/\b(ultra|pro|reasoning|thinking)\b/.test(description)) return 3;
+    if (/\b(flash|lite|nano)\b/.test(description)) return 1;
+    return 2;
+  };
+  const modelVersion = (model: RawGeminiModel): number[] => {
+    const version =
+      model.version?.match(/\d+(?:\.\d+)+/)?.[0] ??
+      model.name.match(/\d+(?:\.\d+)+/)?.[0] ??
+      model.version ??
+      '';
+    return version.split('.').map((part) => Number(part) || 0);
+  };
+  const compareVersions = (left: number[], right: number[]): number => {
+    const length = Math.max(left.length, right.length);
+    for (let index = 0; index < length; index += 1) {
+      const difference = (right[index] ?? 0) - (left[index] ?? 0);
+      if (difference !== 0) return difference;
+    }
+    return 0;
+  };
+
+  const ranked = [...generationModels].sort((a, b) => {
+    const familyDifference = capabilityRank(b) - capabilityRank(a);
+    if (familyDifference !== 0) return familyDifference;
+
+    const versionDifference = compareVersions(modelVersion(a), modelVersion(b));
+    if (versionDifference !== 0) return versionDifference;
+
+    const outputDifference = (b.outputTokenLimit ?? 0) - (a.outputTokenLimit ?? 0);
+    if (outputDifference !== 0) return outputDifference;
+
+    const inputDifference = (b.inputTokenLimit ?? 0) - (a.inputTokenLimit ?? 0);
+    if (inputDifference !== 0) return inputDifference;
+
+    return a.name.localeCompare(b.name);
   });
 
-  return choices.sort((a, b) => {
-    const aId = a.id.toLowerCase();
-    const bId = b.id.toLowerCase();
-
-    // Default model at top
-    if (a.id === DEFAULT_MODEL_ID) return -1;
-    if (b.id === DEFAULT_MODEL_ID) return 1;
-
-    // Flash models before pro models
-    const aIsFlash = aId.includes('flash');
-    const bIsFlash = bId.includes('flash');
-    if (aIsFlash && !bIsFlash) return -1;
-    if (!aIsFlash && bIsFlash) return 1;
-
-    return aId.localeCompare(bId);
-  });
+  return ranked.map(toChoice);
 }

@@ -86,40 +86,16 @@ export async function updateProfileSection<K extends keyof ProfileData>(
 const SETTINGS_KEY = 'local:settings' as const;
 const SETTINGS_VERSION = 1;
 
-/**
- * Default generation model. Deliberately a constant read through settings rather
- * than a literal at the call site, so it can be swapped for a cheaper/faster one
- * without touching the generator.
- */
-export const DEFAULT_MODEL_ID = 'gemini-3.7-flash';
-
-/** The cheaper, faster alternative. Same request shape, lower cost per page. */
-export const CHEAP_MODEL_ID = 'gemini-3.5-flash-lite';
-
-/** Fallback default models offered before an API key is queried. */
-export const DEFAULT_AVAILABLE_MODELS: ModelChoice[] = [
-  { id: DEFAULT_MODEL_ID, label: 'Gemini 3.7 Flash — best drafts (default)' },
-  { id: CHEAP_MODEL_ID, label: 'Gemini 3.5 Flash Lite — fastest and cheapest' },
-  { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash — middle ground' },
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash — reliable stable' },
-  { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-  { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-];
-
-/** Models offered in the options page picker. Kept for backwards compatibility. */
-export const MODEL_CHOICES: ModelChoice[] = DEFAULT_AVAILABLE_MODELS;
-
 const AVAILABLE_MODELS_KEY = 'local:availableModels' as const;
 const availableModelsItem = storage.defineItem<ModelChoice[]>(AVAILABLE_MODELS_KEY, {
   version: 1,
-  fallback: DEFAULT_AVAILABLE_MODELS,
+  fallback: [],
 });
 
-/** Read the cached available models from storage, or fallback to defaults. */
+/** Read models discovered using the user's API key. */
 export async function getAvailableModels(): Promise<ModelChoice[]> {
   const models = await availableModelsItem.getValue();
-  return Array.isArray(models) && models.length > 0 ? models : DEFAULT_AVAILABLE_MODELS;
+  return Array.isArray(models) ? models : [];
 }
 
 /** Save dynamically fetched available models to storage. */
@@ -127,9 +103,9 @@ export async function saveAvailableModels(models: ModelChoice[]): Promise<void> 
   await availableModelsItem.setValue(models);
 }
 
-/** Settings for a fresh install: no key yet, default model. */
+/** Settings for a fresh install: models are discovered after the user saves a key. */
 export function defaultSettings(): Settings {
-  return { apiKey: '', modelId: DEFAULT_MODEL_ID };
+  return { apiKey: '', modelId: '' };
 }
 
 const settingsItem = storage.defineItem<Settings>(SETTINGS_KEY, {
@@ -140,9 +116,12 @@ const settingsItem = storage.defineItem<Settings>(SETTINGS_KEY, {
 /** Read the stored settings, falling back to defaults on a fresh install. */
 export async function getSettings(): Promise<Settings> {
   const stored = await settingsItem.getValue();
-  // Guard against a partially-written record from an older build: an empty model
-  // ID would produce an unusable request URL.
-  return { ...defaultSettings(), ...stored, modelId: stored.modelId || DEFAULT_MODEL_ID };
+  return {
+    ...defaultSettings(),
+    ...stored,
+    apiKey: typeof stored.apiKey === 'string' ? stored.apiKey : '',
+    modelId: typeof stored.modelId === 'string' ? stored.modelId : '',
+  };
 }
 
 export async function saveSettings(value: Settings): Promise<void> {

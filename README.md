@@ -11,8 +11,9 @@ edit, and insert every answer yourself.
 - **3-layer relevance filtering** — uses hard type filters (ignoring radio/checkbox/dropdowns/search boxes), regex heuristics, and an AI relevance classifier to ensure only genuine job application text fields are shown.
 - **Instant zero-cost profile matching** — deterministic direct matching for static fields (Full Name, First/Last Name, Email, Phone, LinkedIn, GitHub, Portfolio, University, Degree, Company, Role) with zero latency and zero token spend.
 - **AI semantic standard answer matching & paraphrasing** — saved standard answer templates (e.g. cover letters, motivation) are semantically matched to relevant fields and paraphrased to match the specific job title and company context with clean multi-paragraph letter formatting.
-- **Dynamic model discovery** — queries the Google Gemini API using your API key on startup to discover all available text generation models on your account.
-- **Automatic model failover & recovery** — if a model is rate-limited (`HTTP 429`), decommissioned (`HTTP 404`), or overloaded (`HTTP 5xx`), the extension automatically fails over to the next best available model and seamlessly updates your active setting.
+- **Dynamic model discovery** — queries the Google Gemini API after a new API key is saved and on extension startup to discover the text generation models available to that key. The first choice is ranked from API-returned model family, version, and token-limit metadata; no model IDs are bundled as defaults.
+- **Persistent model selection** — newly discovered keys select the highest-ranked available model; a model you choose is saved locally and remains selected until you choose another model or save a different API key.
+- **Automatic model failover & recovery** — if a model is rate-limited (`HTTP 429`), decommissioned (`HTTP 404`), or overloaded (`HTTP 5xx`), the extension tries other models returned for that key for the current request without changing your saved selection.
 - **Profile-driven drafts** — retrieves the most relevant fragments from your work history, projects, and skills for open-ended questions before calling the model.
 - **CV import with explicit confirmation** — upload a PDF CV and the model reads what it can off it; every extracted value is shown grouped by category, editable, and unticked wherever it would change something you typed. Nothing is saved until you confirm. See [Importing a CV](#importing-a-cv).
 - **Bring-your-own-key** — your Gemini API key lives in local extension storage only. It is never synced to your browser account.
@@ -79,7 +80,9 @@ that build manually:
 ### 5. Enter your API key
 
 1. Click the puzzle-piece menu and open **Job Application Copilot → Options**.
-2. Paste your Gemini API key and choose a model.
+2. Paste your Gemini API key and save. The extension fetches models available to
+   that key and selects the highest-ranked option; you can choose another model,
+   and your selection is saved automatically.
 3. Fill in your profile (personal info, work history, projects, etc.) — or start it
    from a CV, see [Importing a CV](#importing-a-cv).
 4. Click **Save**.
@@ -181,8 +184,8 @@ button to open the side panel, and press **Scan this page**.
 
 ## Dynamic Model Selection & Automatic Failover
 
-- **Dynamic Model Discovery:** Models are not hardcoded. When you provide a Gemini API key, the extension queries `GET /v1beta/models` on startup to populate the selector with the real generation models available on your Google AI Studio account. You can also click **Refresh Models** at any time in the settings.
-- **Automatic Model Failover:** If your active model experiences **Quota Exceeded (`HTTP 429`)**, **Model Deprecation / Not Found (`HTTP 404`)**, or **Server Overloaded (`HTTP 5xx`)**, the extension automatically fails over to the next best available model (prioritizing high-speed Flash models) and updates your active model in settings.
+- **Dynamic Model Discovery:** Models are fetched from `GET /v1beta/models` after saving a new Gemini API key and on extension startup. The selector contains only generation-capable models returned for that key. The first result is ranked using generic model-family names, API version, and token limits.
+- **Automatic Model Failover:** If the selected model experiences **Quota Exceeded (`HTTP 429`)**, **Model Deprecation / Not Found (`HTTP 404`)**, or **Server Overloaded (`HTTP 5xx`)**, the extension tries other models returned for the key for that request. This does not replace the saved selection.
 - **Custom Model Support:** Any custom model identifier can still be entered or saved directly.
 
 ## What ships in a build

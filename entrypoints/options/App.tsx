@@ -6,6 +6,7 @@ import {
   emptyProfile,
   getSettings,
   saveSettings,
+  saveAvailableModels,
   defaultSettings,
 } from '@/lib/storage';
 import { Button } from './components/primitives';
@@ -26,6 +27,8 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 export default function App() {
   const [profile, setProfile] = useState<ProfileData>(emptyProfile);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [savedApiKey, setSavedApiKey] = useState('');
+  const [autoDiscoverKey, setAutoDiscoverKey] = useState('');
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<SaveStatus>('idle');
 
@@ -37,6 +40,7 @@ export default function App() {
         if (active) {
           setProfile(storedProfile);
           setSettings(storedSettings);
+          setSavedApiKey(storedSettings.apiKey.trim());
           setLoaded(true);
         }
       })
@@ -60,8 +64,22 @@ export default function App() {
 
   const handleSave = async () => {
     setStatus('saving');
+    const apiKey = settings.apiKey.trim();
+    const keyChanged = apiKey !== savedApiKey;
+    const settingsToSave = {
+      ...settings,
+      apiKey,
+      modelId: keyChanged ? '' : settings.modelId,
+    };
     try {
-      await Promise.all([saveProfile(profile), saveSettings(settings)]);
+      await Promise.all([
+        saveProfile(profile),
+        saveSettings(settingsToSave),
+        ...(keyChanged ? [saveAvailableModels([])] : []),
+      ]);
+      setSettings(settingsToSave);
+      setSavedApiKey(apiKey);
+      if (keyChanged && apiKey) setAutoDiscoverKey(apiKey);
       setStatus('saved');
     } catch {
       setStatus('error');
@@ -196,7 +214,12 @@ export default function App() {
       {/* Main Container */}
       <main className="mx-auto max-w-4xl space-y-5 px-6 py-8">
         {/* Sections */}
-        <ApiSettingsSection value={settings} onChange={patchSettings} />
+        <ApiSettingsSection
+          value={settings}
+          onChange={patchSettings}
+          savedApiKey={savedApiKey}
+          autoDiscoverKey={autoDiscoverKey}
+        />
         <CvImportSection value={profile} onApply={handleImport} />
         <PersonalSection value={profile.personal} onChange={(v) => patch('personal', v)} />
         <EducationSection value={profile.education} onChange={(v) => patch('education', v)} />

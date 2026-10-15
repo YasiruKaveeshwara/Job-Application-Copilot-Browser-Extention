@@ -6,13 +6,7 @@ import { GeneratorError } from '../../lib/generator/types';
 import type { BuiltPrompt, Generator } from '../../lib/generator/types';
 import { MOCK_GENERATOR_FLAG, usingMockGenerator } from '../../lib/generator';
 import { MOCK_EXTRACTED_CV } from '../../lib/extractor/mock-extractor';
-import {
-  getProfile,
-  saveProfile,
-  saveSettings,
-  emptyProfile,
-  DEFAULT_MODEL_ID,
-} from '../../lib/storage';
+import { getProfile, saveProfile, saveSettings, emptyProfile } from '../../lib/storage';
 import { getFieldMappings, saveFieldMapping } from '../../lib/mapping-cache';
 import { sendMessage } from '../../lib/messaging';
 import background from '../../entrypoints/background';
@@ -351,7 +345,7 @@ describe('generateAnswers', () => {
 
   it('logs the underlying error, and only the error, for the service worker log', async () => {
     await saveProfile(profile());
-    await saveSettings({ apiKey: 'AIza-secret-key', modelId: DEFAULT_MODEL_ID });
+    await saveSettings({ apiKey: 'AIza-secret-key', modelId: 'gemini-test-model' });
     const cause = new GeneratorError('network', 'Request to Gemini failed.');
 
     const error = await generateAnswers({ fields: [field()], context }, throwing(cause)).catch(

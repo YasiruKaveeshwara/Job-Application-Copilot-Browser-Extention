@@ -10,9 +10,6 @@ import {
   defaultSettings,
   getAvailableModels,
   saveAvailableModels,
-  DEFAULT_AVAILABLE_MODELS,
-  DEFAULT_MODEL_ID,
-  CHEAP_MODEL_ID,
 } from '../../lib/storage';
 import type { ProfileData, ModelChoice } from '../../lib/types';
 
@@ -116,27 +113,27 @@ describe('settings storage', () => {
     fakeBrowser.reset();
   });
 
-  it('returns no key and the default model on a fresh install', async () => {
+  it('returns no key or selected model on a fresh install', async () => {
     const settings = await getSettings();
     expect(settings).toEqual(defaultSettings());
     expect(settings.apiKey).toBe('');
-    expect(settings.modelId).toBe(DEFAULT_MODEL_ID);
+    expect(settings.modelId).toBe('');
   });
 
   it('saves then reads back the key and model', async () => {
-    await saveSettings({ apiKey: 'AIza-example', modelId: CHEAP_MODEL_ID });
-    expect(await getSettings()).toEqual({ apiKey: 'AIza-example', modelId: CHEAP_MODEL_ID });
+    await saveSettings({ apiKey: 'AIza-example', modelId: 'api-returned-model' });
+    expect(await getSettings()).toEqual({ apiKey: 'AIza-example', modelId: 'api-returned-model' });
   });
 
-  it('falls back to the default model if a stored record has an empty model ID', async () => {
+  it('preserves an empty model ID until models are discovered', async () => {
     await saveSettings({ apiKey: 'AIza-example', modelId: '' });
     const settings = await getSettings();
-    expect(settings.modelId).toBe(DEFAULT_MODEL_ID);
+    expect(settings.modelId).toBe('');
     expect(settings.apiKey).toBe('AIza-example');
   });
 
   it('keeps settings separate from the profile', async () => {
-    await saveSettings({ apiKey: 'AIza-example', modelId: DEFAULT_MODEL_ID });
+    await saveSettings({ apiKey: 'AIza-example', modelId: 'api-returned-model' });
     // Saving a profile must not disturb the key, and vice versa.
     await saveProfile(sampleProfile());
     expect((await getSettings()).apiKey).toBe('AIza-example');
@@ -149,11 +146,9 @@ describe('available models storage', () => {
     fakeBrowser.reset();
   });
 
-  it('returns default models on a fresh install', async () => {
+  it('returns no models until the API key has been queried', async () => {
     const models = await getAvailableModels();
-    expect(models).toEqual(DEFAULT_AVAILABLE_MODELS);
-    expect(models.length).toBeGreaterThan(0);
-    expect(models.some((m) => m.id === DEFAULT_MODEL_ID)).toBe(true);
+    expect(models).toEqual([]);
   });
 
   it('saves then reads back custom available models', async () => {

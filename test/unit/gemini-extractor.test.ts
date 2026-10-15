@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { saveSettings, CHEAP_MODEL_ID } from '../../lib/storage';
+import { saveSettings } from '../../lib/storage';
 import { GeminiExtractor, EXTRACTION_INSTRUCTION } from '../../lib/extractor/gemini-extractor';
 import { MockExtractor, MOCK_EXTRACTED_CV } from '../../lib/extractor/mock-extractor';
 import { MAX_PDF_BYTES, base64ByteLength, checkPdfSize } from '../../lib/extractor/types';
@@ -16,6 +16,7 @@ import type { ExtractedProfileData } from '../../lib/types';
 
 const API_KEY = 'test-api-key-value';
 const MODEL_ID = 'gemini-test-model';
+const SECOND_MODEL_ID = 'gemini-test-second-model';
 
 /** Stand-in for an uploaded CV: valid base64, and not a real document. */
 const PDF_BASE64 = btoa('%PDF-1.7 not really a PDF, and it does not need to be');
@@ -88,12 +89,12 @@ describe('GeminiExtractor request shape', () => {
   });
 
   it('shares the transport with the generator: key in the header, never the URL', async () => {
-    await saveSettings({ apiKey: API_KEY, modelId: CHEAP_MODEL_ID });
+    await saveSettings({ apiKey: API_KEY, modelId: SECOND_MODEL_ID });
     await new GeminiExtractor().extract(PDF_BASE64);
     const { url, init } = callArgs(fetchMock);
     const headers = init.headers as Record<string, string>;
 
-    expect(url).toContain(`${CHEAP_MODEL_ID}:generateContent`);
+    expect(url).toContain(`${SECOND_MODEL_ID}:generateContent`);
     expect(headers['x-goog-api-key']).toBe(API_KEY);
     expect(headers['content-type']).toBe('application/json');
     expect(url).not.toContain(API_KEY);

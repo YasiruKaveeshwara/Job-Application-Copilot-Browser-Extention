@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { saveSettings, getSettings, CHEAP_MODEL_ID } from '../../lib/storage';
+import { saveSettings, getSettings, saveAvailableModels } from '../../lib/storage';
 import {
   GeminiGenerator,
   GEMINI_MODELS_BASE,
@@ -17,6 +17,7 @@ import type { GeneratedAnswer } from '../../lib/types';
 
 const API_KEY = 'test-api-key-value';
 const MODEL_ID = 'gemini-test-model';
+const FALLBACK_MODEL_ID = 'gemini-test-fallback';
 
 const prompt: BuiltPrompt = {
   system: 'You draft job application answers. Return JSON only.',
@@ -99,9 +100,9 @@ describe('GeminiGenerator request shape', () => {
   });
 
   it('follows the model ID when the setting changes, with no code change', async () => {
-    await saveSettings({ apiKey: API_KEY, modelId: CHEAP_MODEL_ID });
+    await saveSettings({ apiKey: API_KEY, modelId: FALLBACK_MODEL_ID });
     await new GeminiGenerator().generate(prompt);
-    expect(callArgs(fetchMock).url).toContain(`${CHEAP_MODEL_ID}:generateContent`);
+    expect(callArgs(fetchMock).url).toContain(`${FALLBACK_MODEL_ID}:generateContent`);
   });
 
   it('sends the API key in the x-goog-api-key header and never in the URL', async () => {
@@ -277,13 +278,14 @@ describe('GeminiGenerator model failover and recovery', () => {
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     await saveSettings({ apiKey: API_KEY, modelId: MODEL_ID });
+    await saveAvailableModels([{ id: FALLBACK_MODEL_ID, label: 'Fallback model from API' }]);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('automatically fails over to next model on 429 quota exceeded and updates active model', async () => {
+  it('automatically fails over to next model on 429 quota exceeded without changing the selection', async () => {
     // First call (MODEL_ID) fails with 429 quota exceeded
     // Second call (fallback model) succeeds with answers
     fetchMock
@@ -304,10 +306,9 @@ describe('GeminiGenerator model failover and recovery', () => {
     // Two attempts should have been made
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    // Active model in settings should have been updated to the working fallback model
+    // Failover only applies to this request, preserving the user's selected model.
     const settings = await getSettings();
-    expect(settings.modelId).not.toBe(MODEL_ID);
-    expect(settings.modelId.length).toBeGreaterThan(0);
+    expect(settings.modelId).toBe(MODEL_ID);
   });
 
   it('automatically fails over to next model on 404 model not found', async () => {
@@ -421,9 +422,49 @@ describe('fetchGeminiModels', () => {
 
     // Text embedding model should be excluded
     expect(models).toHaveLength(2);
-    expect(models.map((m) => m.id)).toEqual(['gemini-2.5-flash', 'gemini-1.5-pro']);
-    expect(models[0]!.label).toBe('Gemini 2.5 Flash (gemini-2.5-flash)');
-    expect(models[0]!.description).toBe('Next generation model');
+    expect(models.map((m) => m.id)).toEqual(['gemini-1.5-pro', 'gemini-2.5-flash']);
+    expect(models[1]!.label).toBe('Gemini 2.5 Flash (gemini-2.5-flash)');
+    expect(models[1]!.description).toBe('Next generation model');
+  });
+
+  it('ranks higher-capability families and newer versions before lighter models', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          models: [
+            {
+              name: 'models/unknown-family-9',
+              displayName: 'General Model',
+              supportedGenerationMethods: ['generateContent'],
+            },
+            {
+              name: 'models/example-pro-2.0',
+              displayName: 'Example Pro',
+              supportedGenerationMethods: ['generateContent'],
+            },
+            {
+              name: 'models/example-pro-1.0',
+              displayName: 'Example Pro',
+              supportedGenerationMethods: ['generateContent'],
+            },
+            {
+              name: 'models/example-flash-10.0',
+              displayName: 'Example Flash',
+              supportedGenerationMethods: ['generateContent'],
+            },
+          ],
+        }),
+    });
+
+    const models = await fetchGeminiModels(API_KEY);
+    expect(models.map((model) => model.id)).toEqual([
+      'example-pro-2.0',
+      'example-pro-1.0',
+      'unknown-family-9',
+      'example-flash-10.0',
+    ]);
   });
 
   it('throws config error if no API key is provided and none stored', async () => {
