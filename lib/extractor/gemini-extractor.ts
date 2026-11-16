@@ -134,23 +134,25 @@ export class GeminiExtractor implements ProfileExtractor {
     if (tooBig !== undefined) throw new GeneratorError('config', tooBig);
 
     const prompts = await getPromptSettings();
-    const text = await callGemini(
+    return callGemini(
       this.buildRequestBody(pdfBase64, prompts.cvExtractionInstruction),
+      (candidateText) => {
+        try {
+          return validateExtractedProfile(candidateText);
+        } catch (cause) {
+          // Re-wrapped so a caller only ever catches GeneratorError from a provider,
+          // whichever layer the failure came from.
+          const detail = cause instanceof ExtractionSchemaError ? cause.message : String(cause);
+          throw new GeneratorError(
+            'response',
+            `Could not read the CV data Gemini returned. ${detail}`,
+            {
+              cause,
+            },
+          );
+        }
+      },
     );
-    try {
-      return validateExtractedProfile(text);
-    } catch (cause) {
-      // Re-wrapped so a caller only ever catches GeneratorError from a provider,
-      // whichever layer the failure came from.
-      const detail = cause instanceof ExtractionSchemaError ? cause.message : String(cause);
-      throw new GeneratorError(
-        'response',
-        `Could not read the CV data Gemini returned. ${detail}`,
-        {
-          cause,
-        },
-      );
-    }
   }
 
   private buildRequestBody(

@@ -285,7 +285,7 @@ describe('GeminiGenerator model failover and recovery', () => {
     vi.unstubAllGlobals();
   });
 
-  it('automatically fails over to next model on 429 quota exceeded without changing the selection', async () => {
+  it('automatically fails over to next model on 429 quota exceeded and saves the working model', async () => {
     // First call (MODEL_ID) fails with 429 quota exceeded
     // Second call (fallback model) succeeds with answers
     fetchMock
@@ -306,9 +306,9 @@ describe('GeminiGenerator model failover and recovery', () => {
     // Two attempts should have been made
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    // Failover only applies to this request, preserving the user's selected model.
+    // The working fallback becomes the preferred model for the next request.
     const settings = await getSettings();
-    expect(settings.modelId).toBe(MODEL_ID);
+    expect(settings.modelId).toBe(FALLBACK_MODEL_ID);
   });
 
   it('automatically fails over to next model on 404 model not found', async () => {
@@ -323,6 +323,16 @@ describe('GeminiGenerator model failover and recovery', () => {
     const result = await new GeminiGenerator().generate(prompt);
     expect(result).toEqual(answers);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails over when a model returns an unusable answer and persists the working model', async () => {
+    fetchMock
+      .mockResolvedValueOnce(geminiOk(JSON.stringify([{ tempId: 'f0', confidence: 'invalid' }])))
+      .mockResolvedValueOnce(geminiOk(JSON.stringify(answers)));
+
+    await expect(new GeminiGenerator().generate(prompt)).resolves.toEqual(answers);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((await getSettings()).modelId).toBe(FALLBACK_MODEL_ID);
   });
 
   it('does not fail over on 401 invalid API key because all models would fail', async () => {

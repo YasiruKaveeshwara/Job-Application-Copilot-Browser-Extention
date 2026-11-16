@@ -415,6 +415,7 @@ describe('reviseAnswer', () => {
     expect(result).toBe(revisedText);
     expect(prompts).toHaveLength(1);
     expect(prompts[0]!.system).toBe(DEFAULT_PROMPT_SETTINGS.answerRevisionSystem);
+    expect(prompts[0]!.user).toContain('copy this tempId verbatim: "f0"');
     expect(prompts[0]!.user).toContain('Describe your React Native experience');
     expect(prompts[0]!.user).toContain('The previous drafted answer.');
     expect(prompts[0]!.user).toContain('Make it shorter and focus on mobile experience.');

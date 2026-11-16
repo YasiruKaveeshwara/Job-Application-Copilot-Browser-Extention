@@ -308,7 +308,7 @@ describe('GeminiExtractor response handling', () => {
       await saveAvailableModels([]);
       const pending = new GeminiExtractor().extract(PDF_BASE64);
       const capturedError = captureError(pending);
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
+      for (let attempt = 1; attempt <= 4; attempt += 1) {
         await waitForFetchStart(attempt);
         await vi.advanceTimersByTimeAsync(GEMINI_REQUEST_TIMEOUT_MS);
       }
@@ -316,7 +316,7 @@ describe('GeminiExtractor response handling', () => {
 
       expect(error.kind).toBe('network');
       expect(error.message).toContain('timed out');
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
     } finally {
       vi.useRealTimers();
     }

@@ -56,19 +56,20 @@ export class GeminiGenerator implements Generator {
   }
 
   async generate(prompt: BuiltPrompt): Promise<GeneratedAnswer[]> {
-    const text = await callGemini(this.buildRequestBody(prompt));
-    try {
-      return validateGeneratedAnswers(text);
-    } catch (cause) {
-      // Re-wrapped so callers only ever need to catch GeneratorError from a
-      // generator, whatever layer the failure actually came from.
-      const detail = cause instanceof SchemaValidationError ? cause.message : String(cause);
-      throw new GeneratorError(
-        'response',
-        `Gemini response did not match the answer schema. ${detail}`,
-        { cause },
-      );
-    }
+    return callGemini(this.buildRequestBody(prompt), (text) => {
+      try {
+        return validateGeneratedAnswers(text);
+      } catch (cause) {
+        // Re-wrapped so callers only ever need to catch GeneratorError from a
+        // generator, whatever layer the failure actually came from.
+        const detail = cause instanceof SchemaValidationError ? cause.message : String(cause);
+        throw new GeneratorError(
+          'response',
+          `Gemini response did not match the answer schema. ${detail}`,
+          { cause },
+        );
+      }
+    });
   }
 
   private buildRequestBody(prompt: BuiltPrompt): unknown {

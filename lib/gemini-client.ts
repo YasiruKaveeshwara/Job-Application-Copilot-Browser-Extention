@@ -1,5 +1,5 @@
 import type { Settings, ModelChoice } from './types';
-import { getSettings, getAvailableModels } from './storage';
+import { getSettings, getAvailableModels, saveSettings } from './storage';
 import { GeneratorError } from './generator/types';
 
 // The Gemini transport: URL, auth, HTTP and response-shape handling, in one
@@ -23,8 +23,6 @@ import { GeneratorError } from './generator/types';
 export const GEMINI_MODELS_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 export const GEMINI_REQUEST_TIMEOUT_MS = 30_000;
-
-const MAX_MODEL_ATTEMPTS = 3;
 
 /** Full endpoint for one model. The model ID travels in the path, not the body. */
 export function generateContentUrl(modelId: string): string {
@@ -73,6 +71,7 @@ export async function loadGeminiSettings(): Promise<Settings> {
  * Build the ordered list of models to try:
  * 1. Current selected model in settings
  * 2. Other models discovered using the user's API key
+ * 3. Known Flash fallbacks for older/stale discovery caches
  */
 export async function getModelCandidates(preferredModelId: string): Promise<string[]> {
   const candidates: string[] = [];
@@ -105,22 +104,33 @@ export async function getModelCandidates(preferredModelId: string): Promise<stri
 /**
  * Send one `generateContent` request and return the model's text.
  *
- * If the current model fails with quota exceeded (429), model not found/unsupported (404/400),
- * a network error, or a timeout, automatically tries up to two more models
- * discovered using the user's API key. Every attempt is bounded by a timeout.
- * A fallback is used for this request only; it never changes the user's selected
- * model preference.
+ * If a model fails with a model-specific HTTP/network/response error, every
+ * remaining candidate is tried. The optional parser is part of the attempt, so
+ * invalid JSON or schema output also causes a fallback. A successful fallback
+ * becomes the new preference for the next request.
  */
-export async function callGemini(body: unknown): Promise<string> {
+export async function callGemini<T = string>(
+  body: unknown,
+  parse: (text: string) => T = (text: string) => text as T,
+): Promise<T> {
   const settings = await loadGeminiSettings();
-  const candidateModels = (await getModelCandidates(settings.modelId)).slice(0, MAX_MODEL_ATTEMPTS);
+  const candidateModels = await getModelCandidates(settings.modelId);
 
   let lastError: GeneratorError | undefined;
 
   for (let i = 0; i < candidateModels.length; i++) {
     const modelId = candidateModels[i]!;
     try {
-      return await requestGeminiModel(modelId, settings.apiKey, body);
+      const text = await requestGeminiModel(modelId, settings.apiKey, body);
+      const result = parse(text);
+      if (modelId !== settings.modelId) {
+        try {
+          await saveSelectedModel(modelId, settings);
+        } catch (cause) {
+          console.warn('[job-copilot] Could not persist the working Gemini model.', cause);
+        }
+      }
+      return result;
     } catch (caught) {
       lastError =
         caught instanceof GeneratorError
@@ -136,9 +146,7 @@ export async function callGemini(body: unknown): Promise<string> {
       }
 
       const canTryFallback =
-        lastError.kind === 'network' ||
-        lastError.kind === 'http' ||
-        lastError.message === 'Gemini API response body was not JSON';
+        lastError.kind === 'network' || lastError.kind === 'http' || lastError.kind === 'response';
       if (!canTryFallback || i === candidateModels.length - 1) {
         throw lastError;
       }
@@ -151,6 +159,10 @@ export async function callGemini(body: unknown): Promise<string> {
   }
 
   throw lastError ?? new GeneratorError('response', 'All available Gemini models failed.');
+}
+
+async function saveSelectedModel(modelId: string, settings: Settings): Promise<void> {
+  await saveSettings({ ...settings, modelId });
 }
 
 async function requestGeminiModel(modelId: string, apiKey: string, body: unknown): Promise<string> {
@@ -353,9 +365,10 @@ export async function fetchGeminiModels(explicitApiKey?: string): Promise<ModelC
   };
   const capabilityRank = (model: RawGeminiModel): number => {
     const description = `${model.displayName ?? ''} ${model.name}`.toLowerCase();
-    // Prioritize Flash / Lite models for high throughput, low latency, and 15 RPM quota (vs 2 RPM for Pro)
-    if (/\b(flash|lite)\b/.test(description) && !/\b(nano)\b/.test(description)) return 3;
-    if (/\b(ultra|pro|reasoning|thinking)\b/.test(description)) return 1;
+    // Keep higher-capability models first for the default selection. Exhaustive
+    // failover still reaches Flash/Lite models when quota or access blocks them.
+    if (/\b(ultra|pro|reasoning|thinking)\b/.test(description)) return 3;
+    if (/\b(flash|lite)\b/.test(description) && !/\b(nano)\b/.test(description)) return 1;
     return 2;
   };
   const modelVersion = (model: RawGeminiModel): number[] => {
