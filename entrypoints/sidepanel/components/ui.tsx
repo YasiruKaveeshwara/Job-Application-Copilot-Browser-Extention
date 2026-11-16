@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react';
 
-// Premium UI primitives for the sidepanel — sharp, modern, pixel-perfect.
-// Design language: crisp borders, tight spacing, subtle depth, indigo/violet system.
+// Shared side-panel primitives.
+// Design language: bright, focused workspace with blue actions and calm surfaces.
 
 const BUTTON_VARIANTS = {
   primary:
-    'bg-indigo-600 text-white shadow-sm shadow-indigo-500/30 hover:bg-indigo-500 active:bg-indigo-700 active:scale-[0.97] border border-indigo-500/50',
+    'bg-[#0b6fe4] text-white shadow-sm shadow-blue-500/30 hover:bg-[#1683f5] active:bg-[#0959b8] active:scale-[0.97] border border-blue-500/50',
   secondary:
     'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-xs active:scale-[0.97]',
-  ghost: 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 active:scale-[0.97]',
+  ghost: 'text-slate-500 hover:bg-blue-50 hover:text-blue-700 active:scale-[0.97]',
   emerald:
     'bg-emerald-600 text-white shadow-sm shadow-emerald-500/25 hover:bg-emerald-500 active:scale-[0.97] border border-emerald-500/40',
   danger:
@@ -33,7 +33,7 @@ export function PanelButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold tracking-tight transition-all duration-100 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100 ${BUTTON_VARIANTS[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-semibold tracking-tight transition-all duration-100 disabled:cursor-not-allowed disabled:opacity-35 disabled:active:scale-100 ${BUTTON_VARIANTS[variant]} ${className}`}
     >
       {children}
     </button>
@@ -42,7 +42,7 @@ export function PanelButton({
 
 const BADGE_TONES = {
   neutral: 'bg-slate-100 text-slate-600 border-slate-200',
-  indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  indigo: 'bg-blue-50 text-blue-700 border-blue-200',
   warn: 'bg-amber-50 text-amber-800 border-amber-200',
   ok: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   purple: 'bg-violet-50 text-violet-700 border-violet-200',
@@ -51,7 +51,7 @@ const BADGE_TONES = {
 
 const BADGE_DOT_COLORS = {
   neutral: 'bg-slate-400',
-  indigo: 'bg-indigo-500',
+  indigo: 'bg-blue-500',
   warn: 'bg-amber-500',
   ok: 'bg-emerald-500',
   purple: 'bg-violet-500',

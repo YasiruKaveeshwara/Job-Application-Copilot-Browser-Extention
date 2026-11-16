@@ -16,6 +16,7 @@ import { FieldCardView } from './components/FieldCard';
 import { Banner, PanelButton } from './components/ui';
 import { SettingsView } from './components/SettingsView';
 import { LogView } from './components/LogView';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 /**
  * Scans read the tab's top-level document.
@@ -300,13 +301,13 @@ export default function App() {
 
   // Main Scan view
   return (
-    <div className="flex min-h-screen flex-col bg-[#f8f9fb] text-slate-900 font-sans">
+    <div className="flex min-h-screen flex-col bg-[#f4f8fc] text-slate-900 font-sans">
       {/* Top Header */}
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/98 px-3 pt-3 pb-2.5 shadow-sm">
+      <header className="sticky top-0 z-10 border-b border-[#dbe7f3] bg-white/90 px-4 pt-4 pb-3 shadow-[0_8px_24px_rgba(27,78,125,0.06)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
           {/* Logo Branding */}
           <div className="flex items-center gap-2.5">
-            <div className="relative flex h-7 w-7 items-center justify-center rounded-xl bg-indigo-600 shadow-sm shadow-indigo-500/30">
+            <div className="relative flex h-7 w-7 items-center justify-center rounded-2xl bg-[#0b6fe4] shadow-sm shadow-blue-500/30">
               {/* Send / plane icon */}
               <svg
                 className="h-3.5 w-3.5 text-white"
@@ -389,40 +390,12 @@ export default function App() {
             <PanelButton variant="primary" onClick={() => void scan()} disabled={busy}>
               {state.phase === 'scanning' ? (
                 <span className="flex items-center gap-1.5">
-                  <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    ></path>
-                  </svg>
+                  <LoadingIndicator size="sm" />
                   Scanning…
                 </span>
               ) : state.phase === 'generating' ? (
                 <span className="flex items-center gap-1.5">
-                  <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    ></path>
-                  </svg>
+                  <LoadingIndicator size="sm" />
                   Drafting…
                 </span>
               ) : state.cards.length > 0 ? (
@@ -454,7 +427,7 @@ export default function App() {
 
         {/* Page context bar */}
         {state.pageTitle.length > 0 && (
-          <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-slate-50 border border-slate-100 px-2.5 py-1.5">
+          <div className="mt-2 flex items-center gap-1.5 rounded-xl bg-[#f8fbff] border border-blue-100 px-2.5 py-1.5">
             <svg
               className="h-3 w-3 shrink-0 text-slate-400"
               viewBox="0 0 20 20"
@@ -511,7 +484,7 @@ export default function App() {
       </header>
 
       {/* Main Content Body */}
-      <main className="flex-1 space-y-2.5 p-3">
+      <main className="flex-1 space-y-3 p-4">
         {state.error && (
           <Banner tone="error" title="Could not finish">
             <p>{state.error}</p>
@@ -535,8 +508,8 @@ export default function App() {
             </Banner>
 
             {/* Hero CTA card */}
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-xs">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 border border-indigo-100">
+            <div className="flex flex-col items-center justify-center rounded-[24px] border border-[#dbe7f3] bg-white p-7 text-center shadow-[0_12px_30px_rgba(27,78,125,0.07)]">
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-[20px] bg-blue-50 border border-blue-100">
                 <svg
                   className="h-7 w-7 text-indigo-600"
                   viewBox="0 0 24 24"
@@ -568,7 +541,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => void scan()}
-                className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-[12px] font-semibold text-white shadow-sm shadow-indigo-500/30 hover:bg-indigo-500 active:bg-indigo-700 active:scale-[0.98] transition-all duration-100"
+                className="mt-4 w-full flex items-center justify-center gap-2 rounded-2xl bg-[#0b6fe4] px-4 py-2.5 text-[12px] font-semibold text-white shadow-sm shadow-blue-500/30 hover:bg-[#1683f5] active:bg-[#0959b8] active:scale-[0.98] transition-all duration-100"
               >
                 <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                   <path
@@ -616,32 +589,14 @@ export default function App() {
         {state.phase === 'scanning' && (
           <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5 text-center">
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 shadow-sm shadow-indigo-500/30">
-              <svg className="h-5 w-5 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                ></circle>
-                <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-              </svg>
+              <LoadingIndicator size="md" />
             </div>
             <p className="text-xs font-bold text-slate-900">Scanning Application Form…</p>
             <p className="mt-1 text-[11px] text-slate-500">
               Detecting inputs, labels, and job context.
             </p>
             {/* Progress dots */}
-            <div className="mt-3 flex justify-center gap-1">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-bounce"
-                  style={{ animationDelay: `${i * 150}ms` }}
-                />
-              ))}
-            </div>
+            <LoadingIndicator size="md" />
           </div>
         )}
 
@@ -664,21 +619,13 @@ export default function App() {
               Matching profile against {state.cards.length} field
               {state.cards.length === 1 ? '' : 's'}.
             </p>
-            <div className="mt-3 flex justify-center gap-1">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-bounce"
-                  style={{ animationDelay: `${i * 150}ms` }}
-                />
-              ))}
-            </div>
+            <LoadingIndicator size="md" />
           </div>
         )}
 
         {/* Field Cards List */}
         {state.cards.length > 0 && (
-          <ul className="space-y-2.5 pb-8">
+          <ul className="space-y-3 pb-10">
             {state.cards.map((card) => (
               <FieldCardView
                 key={card.tempId}

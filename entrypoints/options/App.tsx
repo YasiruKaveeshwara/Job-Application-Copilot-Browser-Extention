@@ -26,6 +26,7 @@ import { StandardAnswersSection } from './components/StandardAnswersSection';
 import { ResumeVariantsSection } from './components/ResumeVariantsSection';
 import { StylePreferencesSection } from './components/StylePreferencesSection';
 import { PromptSettingsSection } from './components/PromptSettingsSection';
+import { LoadingIndicator } from '../components/LoadingIndicator';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -114,35 +115,23 @@ export default function App() {
 
   if (!loaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f8f9fb]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 shadow-sm shadow-indigo-500/30">
-            <svg className="h-6 w-6 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="3"
-              ></circle>
-              <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-            </svg>
-          </div>
-          <p className="text-sm font-semibold text-slate-400">Loading profile…</p>
+      <div className="flex min-h-screen items-center justify-center bg-[#f4f8fc] px-6">
+        <div className="flex w-full max-w-xs flex-col items-center gap-4 rounded-[24px] border border-blue-100 bg-white px-8 py-10 text-blue-600 shadow-[0_12px_34px_rgba(27,111,190,0.1)]">
+          <LoadingIndicator size="lg" />
+          <p className="text-sm font-semibold text-slate-500">Preparing your workspace…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fb] font-sans text-slate-900 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen bg-[#f4f8fc] font-sans text-slate-900 selection:bg-blue-500 selection:text-white">
       {/* Sticky Header */}
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/98 shadow-sm">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
+      <header className="sticky top-0 z-20 border-b border-[#dbe7f3] bg-white/90 shadow-[0_8px_24px_rgba(27,78,125,0.06)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-8 py-5">
           {/* Brand */}
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 shadow-sm shadow-indigo-500/25">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#0b6fe4] shadow-sm shadow-blue-500/30">
               <svg
                 className="h-4.5 w-4.5 text-white"
                 viewBox="0 0 24 24"
@@ -198,21 +187,7 @@ export default function App() {
             <Button variant="primary" onClick={handleSave}>
               {status === 'saving' ? (
                 <span className="flex items-center gap-1.5">
-                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    ></path>
-                  </svg>
+                  <LoadingIndicator size="sm" />
                   Saving…
                 </span>
               ) : (
@@ -229,7 +204,7 @@ export default function App() {
       </header>
 
       {/* Main Container */}
-      <main className="mx-auto max-w-4xl space-y-5 px-6 py-8">
+      <main className="mx-auto max-w-5xl space-y-6 px-8 py-10">
         {promptPageOpen ? (
           <PromptSettingsSection value={prompts} onChange={patchPrompts} />
         ) : (
@@ -266,7 +241,7 @@ export default function App() {
         )}
 
         {/* Bottom Save */}
-        <div className="flex items-center justify-between py-4 pb-8">
+        <div className="flex items-center justify-between border-t border-blue-100 pt-6 pb-2">
           <p className="text-[11px] text-slate-400">
             All data is stored locally in this browser. Nothing is sent to any server except your
             Gemini API key calls.
@@ -278,7 +253,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-5 text-center">
+      <footer className="border-t border-[#dbe7f3] bg-white py-5 text-center">
         <p className="text-[11px] font-medium text-slate-400">
           Built with <span className="inline-block animate-pulse text-red-400">♥</span> by{' '}
           <a

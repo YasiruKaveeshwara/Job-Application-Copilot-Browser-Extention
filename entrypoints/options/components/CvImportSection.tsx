@@ -19,6 +19,7 @@ import {
 } from '@/lib/extractor/merge';
 import type { ReviewItem } from '@/lib/extractor/merge';
 import { Button, Section, TextArea, TextInput } from './primitives';
+import { LoadingIndicator } from '../../components/LoadingIndicator';
 
 type Stage = 'idle' | 'busy' | 'review';
 
@@ -188,17 +189,7 @@ export function CvImportSection({
           className={`flex h-10 w-10 items-center justify-center rounded-xl mb-3 transition-all ${dragOver ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}
         >
           {stage === 'busy' ? (
-            <svg className="h-5 w-5 animate-spin text-indigo-600" viewBox="0 0 24 24" fill="none">
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="3"
-              ></circle>
-              <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-            </svg>
+            <LoadingIndicator size="md" />
           ) : (
             <svg
               className="h-5 w-5"

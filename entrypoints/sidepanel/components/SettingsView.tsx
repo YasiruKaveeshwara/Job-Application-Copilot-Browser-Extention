@@ -26,6 +26,7 @@ import { StandardAnswersSection } from '@/entrypoints/options/components/Standar
 import { ResumeVariantsSection } from '@/entrypoints/options/components/ResumeVariantsSection';
 import { StylePreferencesSection } from '@/entrypoints/options/components/StylePreferencesSection';
 import { PanelButton } from './ui';
+import { LoadingIndicator } from '../../components/LoadingIndicator';
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -124,21 +125,9 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
 
   if (!loaded) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f8f9fb]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600">
-            <svg className="h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="3"
-              ></circle>
-              <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-            </svg>
-          </div>
+      <div className="flex min-h-screen items-center justify-center bg-[#f4f8fc] px-4">
+        <div className="flex w-full max-w-xs flex-col items-center gap-4 rounded-[24px] border border-blue-100 bg-white px-7 py-8 text-blue-600 shadow-[0_12px_34px_rgba(27,111,190,0.1)]">
+          <LoadingIndicator size="md" />
           <p className="text-[11px] font-semibold text-slate-400">Loading profile…</p>
         </div>
       </div>
@@ -146,9 +135,9 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f8f9fb] text-slate-900 font-sans">
+    <div className="flex min-h-screen flex-col bg-[#f4f8fc] text-slate-900 font-sans">
       {/* Sticky Header */}
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/98 px-3 pt-3 pb-2 shadow-sm">
+      <header className="sticky top-0 z-10 border-b border-[#dbe7f3] bg-white/90 px-4 pt-4 pb-3 shadow-[0_8px_24px_rgba(27,78,125,0.06)] backdrop-blur-xl">
         {/* Top row */}
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -198,21 +187,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
             <PanelButton variant="primary" onClick={() => void handleSave()}>
               {status === 'saving' ? (
                 <span className="flex items-center gap-1">
-                  <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    ></path>
-                  </svg>
+                  <LoadingIndicator size="sm" />
                   Saving…
                 </span>
               ) : (
@@ -231,7 +206,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10.5px] font-semibold tracking-tight transition-all shrink-0 ${
                 activeTab === tab.id
-                  ? 'bg-indigo-600 text-white shadow-xs'
+                  ? 'bg-[#0b6fe4] text-white shadow-sm shadow-blue-500/25'
                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800'
               }`}
             >
@@ -243,7 +218,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
       </header>
 
       {/* Scrollable Form Content */}
-      <main className="flex-1 space-y-3 p-3 pb-12">
+      <main className="flex-1 space-y-4 p-4 pb-12">
         {(activeTab === 'all' || activeTab === 'api') && (
           <ApiSettingsSection
             value={settings}

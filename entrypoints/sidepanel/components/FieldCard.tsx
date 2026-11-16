@@ -7,9 +7,10 @@ import {
   reviewReasons,
 } from '../state';
 import { Badge, Banner, PanelButton } from './ui';
+import { LoadingIndicator } from '../../components/LoadingIndicator';
 
 const TEXTAREA_CLASSES =
-  'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[11.5px] font-medium text-slate-900 placeholder:text-slate-400 transition-all focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/15 leading-relaxed resize-none';
+  'w-full rounded-2xl border border-[#dbe7f3] bg-[#f8fbff] px-3 py-2 text-[11.5px] font-medium text-slate-900 placeholder:text-slate-400 transition-all focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-500/10 leading-relaxed resize-none';
 
 /** Long-form fields get room to read; a one-line field doesn't need six rows. */
 function rowsFor(elementType: string): number {
@@ -187,7 +188,7 @@ export function FieldCardView({
           ? 'border-emerald-200 shadow-xs shadow-emerald-500/5'
           : flagged
             ? 'border-amber-200 shadow-xs shadow-amber-500/5'
-            : 'border-slate-200 hover:border-indigo-200 hover:shadow-indigo-500/5'
+            : 'border-[#dbe7f3] hover:border-blue-200 hover:shadow-blue-500/5'
       }`}
     >
       {/* Inserted top accent bar */}
@@ -299,21 +300,7 @@ export function FieldCardView({
             >
               {card.insert.phase === 'inserting' ? (
                 <span className="flex items-center gap-1">
-                  <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    ></path>
-                  </svg>
+                  <LoadingIndicator size="sm" />
                   Inserting…
                 </span>
               ) : (

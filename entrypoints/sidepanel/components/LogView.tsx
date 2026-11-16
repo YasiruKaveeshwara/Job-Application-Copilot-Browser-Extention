@@ -9,30 +9,30 @@ const LEVEL_STYLES: Record<
   error: {
     label: 'ERR',
     text: 'text-red-400',
-    bg: 'bg-red-950/50',
-    border: 'border-red-800/40',
+    bg: 'bg-red-50',
+    border: 'border-red-200',
     dot: 'bg-red-500',
   },
   warn: {
     label: 'WRN',
     text: 'text-amber-400',
-    bg: 'bg-amber-950/40',
-    border: 'border-amber-800/40',
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
     dot: 'bg-amber-500',
   },
   info: {
     label: 'INF',
     text: 'text-sky-400',
-    bg: 'bg-sky-950/30',
-    border: 'border-sky-800/40',
+    bg: 'bg-sky-50',
+    border: 'border-sky-200',
     dot: 'bg-sky-500',
   },
   debug: {
     label: 'DBG',
     text: 'text-slate-500',
-    bg: 'bg-slate-900/60',
-    border: 'border-slate-800/50',
-    dot: 'bg-slate-600',
+    bg: 'bg-slate-50',
+    border: 'border-slate-200',
+    dot: 'bg-slate-400',
   },
 };
 
@@ -51,7 +51,7 @@ function EntryRow({ entry }: { entry: LogEntry }) {
 
   return (
     <li
-      className={`rounded-lg border ${s.border} ${s.bg} px-3 py-2 font-mono text-[10.5px] leading-relaxed transition-all`}
+      className={`rounded-xl border ${s.border} ${s.bg} px-3 py-2 font-mono text-[10.5px] leading-relaxed transition-all`}
     >
       <div className="flex items-start gap-2">
         <span className={`mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full ${s.dot}`} />
@@ -66,7 +66,7 @@ function EntryRow({ entry }: { entry: LogEntry }) {
         <span className="shrink-0 rounded bg-slate-800 px-1.5 text-[9.5px] font-semibold text-slate-400">
           {entry.source}
         </span>
-        <span className="min-w-0 flex-1 break-words text-slate-200 text-[10.5px]">
+        <span className="min-w-0 flex-1 break-words text-slate-700 text-[10.5px]">
           {entry.message}
         </span>
       </div>
@@ -75,12 +75,12 @@ function EntryRow({ entry }: { entry: LogEntry }) {
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
-            className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 underline"
+            className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 hover:text-blue-700 underline"
           >
             {expanded ? '▲ hide' : '▼ details'}
           </button>
           {expanded && (
-            <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-800 bg-slate-950 p-2 text-[10px] text-slate-300 selection:bg-indigo-600">
+            <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl border border-[#dbe7f3] bg-[#f8fbff] p-2 text-[10px] text-slate-600 selection:bg-blue-600">
               {entry.detail}
             </pre>
           )}
@@ -120,15 +120,15 @@ export function LogView({ onBack }: { onBack: () => void }) {
   }, [filtered]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100 font-sans">
+    <div className="flex min-h-screen flex-col bg-[#f4f8fc] text-slate-900 font-sans">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-slate-800 bg-slate-950/95 px-3 pt-3 pb-2.5 backdrop-blur-md">
+      <header className="sticky top-0 z-10 border-b border-[#dbe7f3] bg-white/90 px-3 pt-3 pb-2.5 shadow-[0_8px_24px_rgba(27,78,125,0.06)] backdrop-blur-xl">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onBack}
-              className="rounded-lg p-1.5 text-slate-500 transition-all hover:bg-slate-800 hover:text-slate-200"
+              className="rounded-lg p-1.5 text-slate-500 transition-all hover:bg-blue-50 hover:text-blue-700"
               aria-label="Back"
             >
               <svg
@@ -161,7 +161,7 @@ export function LogView({ onBack }: { onBack: () => void }) {
             <button
               type="button"
               onClick={() => void handleCopyAll()}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10.5px] font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-all"
+              className="rounded-xl border border-[#dbe7f3] bg-white px-2.5 py-1 text-[10.5px] font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition-all"
             >
               {copied ? (
                 <span className="flex items-center gap-1 text-emerald-400">
@@ -181,7 +181,7 @@ export function LogView({ onBack }: { onBack: () => void }) {
             <button
               type="button"
               onClick={handleClear}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10.5px] font-semibold text-slate-400 hover:bg-slate-700 hover:text-slate-200 transition-all"
+              className="rounded-xl border border-[#dbe7f3] bg-white px-2.5 py-1 text-[10.5px] font-semibold text-slate-500 hover:bg-blue-50 hover:text-blue-700 transition-all"
             >
               Clear
             </button>
@@ -189,13 +189,13 @@ export function LogView({ onBack }: { onBack: () => void }) {
         </div>
 
         {/* Filter bar */}
-        <div className="mt-2.5 flex items-center gap-3 border-t border-slate-800/80 pt-2">
+        <div className="mt-2.5 flex items-center gap-3 border-t border-blue-100 pt-2">
           <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] text-slate-500 hover:text-slate-300 transition-colors">
             <input
               type="checkbox"
               checked={showDebug}
               onChange={(e) => setShowDebug(e.target.checked)}
-              className="h-3 w-3 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 focus:ring-offset-0"
+              className="h-3 w-3 rounded border-blue-200 bg-white text-blue-600 focus:ring-0 focus:ring-offset-0"
             />
             Include DEBUG trace
           </label>
@@ -218,7 +218,7 @@ export function LogView({ onBack }: { onBack: () => void }) {
       <main className="flex-1 p-3">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 border border-slate-800">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 border border-blue-100">
               <svg className="h-5 w-5 text-slate-600" viewBox="0 0 20 20" fill="currentColor">
                 <path
                   fillRule="evenodd"
